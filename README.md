@@ -396,7 +396,7 @@ The system requires a scalable and efficient architecture to handle real-time da
 
 The core challenge lies in building a system that is **accurate, fair, flexible, and resistant to manipulation**. Purely automated or purely manual approaches fail to meet these requirements.
 
-ShieldPay addresses this by integrating:
+Survival Lens addresses this by integrating:
 
 - AI-driven detection
 - Human-verified validation
