@@ -1,22 +1,22 @@
 ## **1. Income Instability Due to External Disruptions**
 
-Gig workers operate in highly dynamic environments where external factors such as weather conditions, pollution, and mobility restrictions directly reduce their earning capacity. The key issue is not just the occurrence of disruptions, but the absence of a system that can **quantify and compensate income loss in real time**. Existing financial protections are either delayed, manual, or irrelevant to short-term disruptions, making them ineffective for gig-based work models.
+Gig workers operate in **rapidly** **changing** **conditions** **with** **many** **outside** **influences** **like** weather, **environmental** **hazards** **and** restrictions **on** **movement causing** their **ability** **to earn money to decrease**. The **problem** is not the occurrence of **external** disruptions, but the **fact** **that** **there** **is** **no** **current system to** **accurately measure** and **pay** **for any** loss in **income resulting from external disruptions on a** **real-**time **basis**. **Other** **options** **like** **traditional** **insurance for gig workers are** delayed, **require** **manual** **processing** to **file a claim and do not provide coverage for very** short **periods of time** making them **useless** for gig **workers**.
 
 ### **Proposed Solution**
 
-- Introduce **parametric income protection** based on disruption events
-- Detect disruptions in real time using external and system data
-- Provide **instant claim eligibility** without manual filing
-- Align insurance structure with **daily earning dependency**
+- **Create** **a system that provides** **parametric income protection **for** **gig** **workers** **being** **impacted** **by** **disruptions**
+- **Utilise** real**-**time **data** **from outside sources** and **gig** **worker systems to detect external disruptions**
+- Provide instant eligibility **for making a claim that** **does** **not require preparation of paper based documents**
+- **Make** **the gig** insurance **policy** structure **more inline** with **the** **way** **gig workers earn daily.**
 
 ## **2. Lack of Fair and Adaptive Premium Pricing**
 
-Gig workers face income volatility due to uncontrollable external factors. Current systems lack:
+Gig workers **are exposed to** income **fluctuations** **as** **the** **outcomes of** external factors **are outside their control**. Current systems **do not include**:
 
-- Real-time income protection
-- Automated claim processing
-- Hyperlocal risk assessment
-- Robust fraud detection
+- **Protection from** income **fluctuations in real time**
+- **Automation of claims** processing
+- **Hyper local** risk **analysis**
+- **Advanced f**raud detection **systems**
 
 ### **Constraints**
 
