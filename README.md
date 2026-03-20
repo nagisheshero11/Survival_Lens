@@ -240,8 +240,6 @@ Handling detection, validation, fraud prevention, and payouts independently lead
     - Event proposal → Validation → Fraud check → Wallet credit
 - Deploy using **serverless and scalable infrastructure**
 
----
-
 ## **12. Sustainability and Financial Viability**
 
 An insurance system must remain financially sustainable while providing fair compensation. Poor pricing strategies or excessive payouts can destabilize the system.
@@ -292,11 +290,6 @@ This agent is responsible for identifying potential environmental disruptions us
 - Generate:
     - Event proposals with confidence levels
 
-### **Mental Model**
-
-> “Is this environmental condition strong and consistent enough to realistically impact work in this area?”
-> 
-
 ## **13.2 Event Validation & Consensus Agent**
 
 This agent validates all disruption events by combining **AI proposals and human input**. It ensures that both environmental and non-environmental disruptions reflect actual ground conditions.
@@ -312,11 +305,6 @@ This agent validates all disruption events by combining **AI proposals and human
     - Active-user participation filtering
 - Produce:
     - Final event validation decision
-
-### **Mental Model**
-
-> “Do the users experiencing this situation confirm that the disruption is real and impactful?”
-> 
 
 ## **13.3 Activity & Integrity Agent**
 
@@ -340,11 +328,6 @@ This agent ensures that claims are made by genuinely active workers and prevents
 - Location Integrity Score
 - Fraud Risk Indicator
 
-### **Mental Model**
-
-> “Is this user genuinely working in this location, and does their behavior align with real-world patterns?”
-> 
-
 ## **13.4 Financial Decision Agent (Premium + Claim Wallet)**
 
 This agent manages both pricing and payout allocation while maintaining user flexibility. It ensures fair compensation based on risk exposure and activity without forcing immediate fund disbursement.
@@ -364,11 +347,6 @@ This agent manages both pricing and payout allocation while maintaining user fle
 
 - Weekly Premium
 - Wallet Credit Amount
-
-### **Mental Model**
-
-> “What is the fair financial outcome for this user given their risk, activity, and the disruption impact?”
-> 
 
 # **14. Technology Stack and Deployment Architecture**
 
