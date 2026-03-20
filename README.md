@@ -404,3 +404,6 @@ ShieldPay addresses this by integrating:
 - Controlled payout mechanisms
 
 This hybrid approach ensures a **robust, scalable, and real-world deployable solution** for income protection in the gig economy.
+
+
+Video URL - https://drive.google.com/file/d/1-38OhHpjG8Wvw6tHyzDd5X-tsHqQet3E/view?usp=drive_link
