@@ -1,5 +1,8 @@
+"use client";
+
 import { ReactNode } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Home,
   Vote,
@@ -10,7 +13,33 @@ import {
   LogOut,
 } from "lucide-react";
 
+const NAV_ITEMS = [
+  { name: "Home", href: "/dashboard", icon: Home },
+  { name: "Voting", href: "/dashboard/voting", icon: Vote },
+  { name: "Plans", href: "/dashboard/plans", icon: LayoutList },
+  { name: "Settings", href: "/dashboard/settings", icon: Settings },
+  { name: "Profile", href: "/dashboard/profile", icon: User },
+  { name: "Support", href: "/dashboard/support", icon: HelpCircle },
+];
+
 export default function DashboardLayout({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+
+  // Determine active index based on route. Exact match for Home, startsWith for others.
+  const activeIndex = NAV_ITEMS.findIndex((item) => {
+    if (item.href === "/dashboard") {
+      return pathname === "/dashboard";
+    }
+    return pathname.startsWith(item.href);
+  });
+
+  // Calculate the top offset for the active background
+  // Each link item is 48px height (py-3 = 12px padding * 2 + 24px line-height roughly, let's say 48px)
+  // There is a 4px gap between items. So 52px total per slot.
+  // Actually, space-y-1 applies margin-top: 0.25rem (4px) to non-first items.
+  // It's easier to layout the absolute background accurately using index * 52px (48px item + 4px gap).
+  const activeTopPosition = activeIndex >= 0 ? activeIndex * 52 : -100;
+
   return (
     <div className="flex min-h-screen bg-[#f8f9fa] font-sans text-slate-900">
       {/* Sidebar */}
@@ -24,61 +53,46 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </p>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-50 text-blue-600 font-bold relative"
-          >
-            <Home size={18} className="text-blue-600" />
-            <span>Home</span>
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-blue-600 rounded-l-full"></div>
-          </Link>
+        <nav className="flex-1 px-4 relative space-y-1">
+          {/* Animated Active Background Indicator */}
+          {activeIndex >= 0 && (
+            <div
+              className="absolute left-4 right-4 h-12 bg-blue-50 rounded-xl transition-all duration-300 ease-in-out z-0 flex items-center shadow-sm"
+              style={{
+                transform: `translateY(${activeTopPosition}px)`,
+                top: 0,
+              }}
+            >
+              {/* Right blue bar */}
+              <div className="absolute right-[-1rem] w-1 h-8 bg-blue-600 rounded-l-full"></div>
+            </div>
+          )}
 
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-medium transition-colors"
-          >
-            <Vote size={18} />
-            <span>Voting</span>
-          </Link>
+          {NAV_ITEMS.map((item, index) => {
+            const Icon = item.icon;
+            const isActive = index === activeIndex;
 
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-medium transition-colors"
-          >
-            <LayoutList size={18} />
-            <span>Plans</span>
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-medium transition-colors"
-          >
-            <Settings size={18} />
-            <span>Settings</span>
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-medium transition-colors"
-          >
-            <User size={18} />
-            <span>Profile</span>
-          </Link>
-
-          <Link
-            href="#"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-medium transition-colors"
-          >
-            <HelpCircle size={18} />
-            <span>Support</span>
-          </Link>
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`relative z-10 flex items-center gap-3 px-4 py-3 h-12 rounded-xl font-medium transition-colors duration-200 ${
+                  isActive
+                    ? "text-blue-600 font-bold"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50/50"
+                }`}
+              >
+                <Icon size={18} className={isActive ? "text-blue-600" : ""} />
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="p-4 mt-auto mb-8 border-t border-slate-100/50">
           <Link
             href="/auth/login"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-bold transition-colors"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-bold transition-colors duration-200"
           >
             <LogOut size={18} />
             <span>Logout</span>
@@ -87,7 +101,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
+      <main className="flex-1 flex flex-col min-h-[100vh] overflow-x-hidden">
         {children}
 
         {/* Footer inside Dashboard */}
