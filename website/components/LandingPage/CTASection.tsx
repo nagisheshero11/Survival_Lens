@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 
 export default function CTASection() {
   return (
-    <section id="pricing" className="py-32 px-4 sm:px-6 lg:px-8 relative z-20 bg-white">
+    <section id="pricing" className="py-16 lg:py-24 px-4 sm:px-6 lg:px-8 relative z-20 bg-white">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         whileInView={{ opacity: 1, scale: 1, y: 0 }}
@@ -13,8 +13,16 @@ export default function CTASection() {
         className="max-w-5xl mx-auto glass-card bg-white border border-slate-200 rounded-[3rem] p-12 lg:p-24 text-center text-slate-900 shadow-[0_20px_60px_rgba(0,0,0,0.05)] relative overflow-hidden"
       >
         {/* Decorative ambient glowing circles */}
-        <div className="absolute top-0 left-0 w-96 h-96 bg-blue-100/50 rounded-full mix-blend-multiply filter blur-[80px] -translate-x-1/2 -translate-y-1/2"></div>
-        <div className="absolute bottom-0 right-0 w-96 h-96 bg-indigo-100/50 rounded-full mix-blend-multiply filter blur-[80px] translate-x-1/2 translate-y-1/2"></div>
+        <motion.div 
+           animate={{ y: [-20, 20, -20], x: [-10, 10, -10], scale: [1, 1.05, 1] }} 
+           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+           className="absolute top-0 left-0 w-[500px] h-[500px] bg-blue-100/60 rounded-full mix-blend-multiply filter blur-[80px] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+        />
+        <motion.div 
+           animate={{ y: [20, -20, 20], x: [10, -10, 10], scale: [1, 1.05, 1] }} 
+           transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+           className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-indigo-100/60 rounded-full mix-blend-multiply filter blur-[80px] translate-x-1/2 translate-y-1/2 pointer-events-none"
+        />
         
         <div className="relative z-10 w-full flex flex-col items-center">
           <h2 className="text-4xl md:text-6xl font-extrabold mb-8 tracking-tight leading-tight">
