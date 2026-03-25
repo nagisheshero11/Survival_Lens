@@ -4,7 +4,6 @@ import RealitySection from "../components/LandingPage/RealitySection";
 import SolutionSection from "../components/LandingPage/SolutionSection";
 import StepsSection from "../components/LandingPage/StepsSection";
 import TechnologySection from "../components/LandingPage/TechnologySection";
-import CTASection from "../components/LandingPage/CTASection";
 import Footer from "../components/LandingPage/Footer";
 
 export default function Home() {
@@ -22,7 +21,6 @@ export default function Home() {
       <SolutionSection />
       <StepsSection />
       <TechnologySection />
-      <CTASection />
       <Footer />
     </main>
   );
