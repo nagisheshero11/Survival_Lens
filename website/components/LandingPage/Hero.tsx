@@ -56,17 +56,26 @@ export default function Hero() {
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-200/40 rounded-full blur-[80px]" />
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-indigo-100/30 rounded-full blur-[100px]" />
 
-            {/* Central Core Shield */}
+            {/* Central Core Delivery Image */}
             <motion.div 
               animate={{ y: [0, -8, 0] }}
               transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
               className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30"
             >
-              <div className="w-32 h-32 bg-white/90 backdrop-blur-md border border-blue-200 shadow-2xl rounded-full flex flex-col items-center justify-center relative">
-                {/* Radar pulse effect behind shield */}
-                <div className="absolute inset-0 border border-blue-300 rounded-full animate-[ping_3s_ease-out_infinite] opacity-50" />
-                <ShieldCheck className="w-12 h-12 text-blue-600 mb-1" />
-                <span className="text-[10px] font-extrabold text-slate-800 uppercase tracking-widest">Protocol</span>
+              <div className="w-48 h-48 bg-white/40 backdrop-blur-md border border-blue-200 shadow-[0_0_50px_rgba(59,130,246,0.2)] rounded-full flex flex-col items-center justify-center relative p-3 group">
+                {/* Radar pulse effect behind */}
+                <div className="absolute inset-0 border-2 border-blue-300 rounded-full animate-[ping_3s_ease-out_infinite] opacity-50" />
+                <div className="absolute inset-2 border border-blue-100 rounded-full animate-[spin_10s_linear_infinite]" />
+                
+                {/* Delivery Rider Display */}
+                <div className="w-full h-full rounded-full overflow-hidden bg-white shadow-inner flex items-center justify-center relative z-10 border-4 border-white">
+                  <img src="/images/gig-worker.png" alt="Gig Worker Protected" className="w-full h-full object-contain scale-125 translate-y-1 group-hover:scale-[1.35] transition-transform duration-700" />
+                </div>
+                
+                <div className="absolute -bottom-3 bg-blue-600 text-white px-4 py-1.5 rounded-full shadow-lg border border-blue-400 flex items-center gap-2 z-20">
+                  <ShieldCheck size={14} className="text-blue-200" />
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest whitespace-nowrap">Fully Insured</span>
+                </div>
               </div>
             </motion.div>
 
