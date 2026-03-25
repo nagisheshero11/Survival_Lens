@@ -2,7 +2,7 @@ import { BarChart3, Users, Droplets } from "lucide-react";
 
 export default function SolutionSection() {
   return (
-    <section className="py-24">
+    <section id="about" className="py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         <p className="text-sm font-bold text-blue-600 uppercase tracking-widest mb-4">The Survival Lens Solution</p>
         <h2 className="text-4xl font-bold text-slate-900 mb-6">Resilience through Intelligence</h2>

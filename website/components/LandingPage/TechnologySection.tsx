@@ -2,7 +2,7 @@ import { ShieldCheck, Fingerprint } from "lucide-react";
 
 export default function TechnologySection() {
   return (
-    <section className="py-24">
+    <section id="features" className="py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <p className="text-sm font-bold text-blue-600 uppercase tracking-widest mb-4">Core Technology</p>
         <h2 className="text-4xl font-bold text-slate-900 mb-12">The Engine Under the Hood</h2>

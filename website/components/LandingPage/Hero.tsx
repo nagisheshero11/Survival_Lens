@@ -3,7 +3,7 @@ import { ArrowRight, ShieldCheck } from "lucide-react";
 
 export default function Hero() {
   return (
-    <section className="pt-32 pb-20 lg:pt-40 lg:pb-28">
+    <section id="home" className="pt-32 pb-20 lg:pt-40 lg:pb-28">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-center">
           {/* Hero Content */}

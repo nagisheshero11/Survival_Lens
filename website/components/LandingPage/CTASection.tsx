@@ -1,6 +1,6 @@
 export default function CTASection() {
   return (
-    <section className="py-20 px-4 sm:px-6 lg:px-8">
+    <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto bg-blue-600 rounded-[2.5rem] p-12 lg:p-20 text-center text-white shadow-2xl relative overflow-hidden">
         {/* Decorative circles */}
         <div className="absolute top-0 left-0 w-64 h-64 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-50 -translate-x-1/2 -translate-y-1/2"></div>
