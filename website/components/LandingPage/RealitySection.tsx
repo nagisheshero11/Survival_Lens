@@ -6,54 +6,54 @@ import { motion } from "framer-motion";
 export default function RealitySection() {
   return (
     <section id="reality" className="py-16 lg:py-24 relative w-full flex items-center">
-      
+
       {/* Deep Flowing Ambient Background (No hard 'paper' borders) */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden flex justify-center items-center">
         {/* Soft immersive glow nodes instead of a hard background color */}
-        <motion.div 
+        <motion.div
           animate={{ scale: [1, 1.1, 1], opacity: [0.2, 0.4, 0.2] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-[20%] right-[10%] w-[600px] h-[600px] bg-blue-100/40 rounded-full blur-[120px]" 
+          className="absolute top-[20%] right-[10%] w-[600px] h-[600px] bg-blue-100/40 rounded-full blur-[120px]"
         />
-        <motion.div 
+        <motion.div
           animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.3, 0.1] }}
           transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-          className="absolute bottom-0 left-[5%] w-[500px] h-[500px] bg-slate-200/50 rounded-full blur-[100px]" 
+          className="absolute bottom-0 left-[5%] w-[500px] h-[500px] bg-slate-200/50 rounded-full blur-[100px]"
         />
-        
+
         {/* Animated subtle grid background indicating complex volatile data */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_10%,transparent_100%)] opacity-30" />
       </div>
-      
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
         <div className="grid lg:grid-cols-2 gap-16 lg:gap-24 items-center">
-          
+
           {/* Left side Cards & Advanced Interactive Popups */}
           <div className="relative space-y-8 h-full py-10">
-            
+
             {/* Highly Visible Floating System Alerts (Foreground) */}
             <div className="absolute inset-0 z-30 pointer-events-none">
-               <motion.div 
-                 animate={{ y: [0, -15, 0] }}
-                 transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                 className="absolute -top-6 right-2 lg:-right-6 bg-white/80 backdrop-blur-2xl border border-blue-200/50 text-blue-800 text-[11px] sm:text-xs font-bold px-4 py-3 rounded-2xl shadow-xl shadow-blue-500/10 flex items-center gap-2"
-               >
-                 <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
-                 Backend Sync: Routing Altered
-               </motion.div>
+              <motion.div
+                animate={{ y: [0, -15, 0] }}
+                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute -top-6 right-2 lg:-right-6 bg-white/80 backdrop-blur-2xl border border-blue-200/50 text-blue-800 text-[11px] sm:text-xs font-bold px-4 py-3 rounded-2xl shadow-xl shadow-blue-500/10 flex items-center gap-2"
+              >
+                <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
+                Backend Sync: Routing Altered
+              </motion.div>
 
-               <motion.div 
-                 animate={{ y: [0, -15, 0] }}
-                 transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
-                 className="absolute bottom-4 -left-2 lg:-left-6 bg-white/80 backdrop-blur-2xl border border-indigo-200/50 text-indigo-800 text-[11px] sm:text-xs font-bold px-4 py-3 rounded-2xl shadow-xl shadow-indigo-500/10 flex items-center gap-2"
-               >
-                 <AlertTriangle size={14} className="text-indigo-500" />
-                 Market Saturated: Earnings Drop 38%
-               </motion.div>
+              <motion.div
+                animate={{ y: [0, -15, 0] }}
+                transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
+                className="absolute bottom-4 -left-2 lg:-left-6 bg-white/80 backdrop-blur-2xl border border-indigo-200/50 text-indigo-800 text-[11px] sm:text-xs font-bold px-4 py-3 rounded-2xl shadow-xl shadow-indigo-500/10 flex items-center gap-2"
+              >
+                <AlertTriangle size={14} className="text-indigo-500" />
+                Market Saturated: Earnings Drop 38%
+              </motion.div>
             </div>
 
             {/* Income Volatility Card */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
@@ -69,9 +69,9 @@ export default function RealitySection() {
                 You carry 100% of the operational risk, while the platform carries zero. A sudden backend update or an unexpected influx of drivers in your zone can slash your daily earnings by 40% in an instant.
               </p>
             </motion.div>
-            
+
             {/* Systemic Vulnerability Card */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
@@ -90,7 +90,7 @@ export default function RealitySection() {
           </div>
 
           {/* Right side robust content */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: 30 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: "-100px" }}
@@ -98,26 +98,26 @@ export default function RealitySection() {
             className="flex flex-col justify-center h-full"
           >
             <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full border border-blue-100 bg-blue-50/50 mb-8 w-fit">
-               <Activity size={14} className="text-blue-600 animate-pulse" />
-               <span className="text-xs font-bold text-blue-700 uppercase tracking-widest">Active Market Reality</span>
+              <Activity size={14} className="text-blue-600 animate-pulse" />
+              <span className="text-xs font-bold text-blue-700 uppercase tracking-widest">Active Market Reality</span>
             </div>
-            
+
             <h2 className="text-4xl lg:text-6xl font-extrabold text-slate-900 mb-8 leading-[1.1] tracking-tight">
               The algorithm is not your partner.<br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">It's a variable.</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">It&apos;s a variable.</span>
             </h2>
-            
+
             <p className="text-lg lg:text-xl text-slate-600 mb-12 leading-relaxed font-medium">
               Millions of independent professionals operate directly on the edge of financial volatility. You are subjected to a fragile ecosystem built on constant, uncontrolled risk.
             </p>
-            
+
             <ul className="space-y-6">
               {[
                 "Zero transparency on internal algorithmic routing",
                 "Sudden arbitrary platform account deactivations",
                 "Instant localized market supply oversaturation"
               ].map((item, i) => (
-                <motion.li 
+                <motion.li
                   key={i}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}

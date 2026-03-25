@@ -60,7 +60,7 @@ export default function TechnologySection() {
                 </div>
                 <h3 className="text-3xl font-extrabold text-slate-900 mb-4 tracking-tight">Real-Time Risk Engine</h3>
                 <p className="text-slate-600 leading-relaxed font-medium mb-8 text-[15px]">
-                  Our intelligence engine continuously scrapes thousands of live data points across delivery, freelance, and ride-share platforms to instantly deliver an active "Weather Forecast" of catastrophic algorithmic shifts directly to your dashboard.
+                  Our intelligence engine continuously scrapes thousands of live data points across delivery, freelance, and ride-share platforms to instantly deliver an active &quot;Weather Forecast&quot; of catastrophic algorithmic shifts directly to your dashboard.
                 </p>
               </div>
               
@@ -87,30 +87,30 @@ export default function TechnologySection() {
             </div>
           </motion.div>
 
-          {/* Side Feature: Secure Dark Card (Replaces Emerald) */}
+          {/* Side Feature: Secure Card (Updated to White/Premium) */}
           <motion.div 
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-50px" }}
             transition={{ duration: 0.8, type: "spring", bounce: 0.4, delay: 0.2 }}
-            className="glass-card bg-gradient-to-br from-slate-900 via-[#0f172a] to-indigo-950 overflow-hidden flex flex-col justify-center p-10 relative border border-slate-800 shadow-2xl transform hover:-translate-y-3 transition-all duration-500 rounded-[2.5rem] group"
+            className="glass-card bg-white/80 backdrop-blur-xl p-10 border border-slate-100 hover:border-indigo-200 transition-all duration-500 shadow-xl hover:shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-3 rounded-[2.5rem] relative overflow-hidden group flex flex-col justify-center"
           >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.15)_0,transparent_60%)] group-hover:scale-125 transition-transform duration-1000" />
+            <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-50 rounded-full blur-[50px] -mr-20 -mt-20 opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
             
             <motion.div 
               animate={{ rotate: 360 }} 
-              transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
-              className="absolute -top-10 -right-10 p-8 opacity-10 text-indigo-400 mix-blend-overlay pointer-events-none"
+              transition={{ duration: 50, repeat: Infinity, ease: "linear" }}
+              className="absolute -bottom-16 -right-16 text-slate-50 pointer-events-none group-hover:text-indigo-50 transition-colors duration-700 z-0"
             >
-              <ShieldCheck size={200} />
+              <ShieldCheck size={200} strokeWidth={1} />
             </motion.div>
             
             <div className="relative z-10">
-              <div className="h-14 w-14 rounded-2xl bg-indigo-500/20 flex items-center justify-center text-indigo-400 mb-6 border border-indigo-500/30 backdrop-blur-md group-hover:scale-110 group-hover:bg-indigo-500 group-hover:text-white transition-all cursor-pointer shadow-[0_0_20px_rgba(99,102,241,0.2)] group-hover:-rotate-6">
+              <div className="h-14 w-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 mb-6 border border-indigo-100 shadow-sm group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white transition-all cursor-pointer group-hover:-rotate-6">
                 <ShieldCheck size={28} />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-4 tracking-tight">Immutably Secured</h3>
-              <p className="text-slate-400 font-medium leading-relaxed">
+              <h3 className="text-2xl md:text-3xl lg:text-2xl font-extrabold text-slate-900 mb-4 tracking-tight">Immutably Secured</h3>
+              <p className="text-[15px] text-slate-600 font-medium leading-relaxed">
                 Risk matrices and claim qualifications are rigorously validated through an automated, multi-signal cryptographic verification layer.
               </p>
             </div>

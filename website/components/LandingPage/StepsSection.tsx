@@ -45,7 +45,7 @@ export default function StepsSection() {
   ];
 
   return (
-    <section className="py-24 lg:py-32 relative w-full flex items-center justify-center">
+    <section id="how-it-works" className="py-24 lg:py-32 relative w-full flex items-center justify-center">
       
       {/* Immersive Deep Background */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden flex justify-center items-center">
@@ -94,14 +94,7 @@ export default function StepsSection() {
           viewport={{ once: true, margin: "-100px" }}
           className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-6 relative z-10"
         >
-          {/* Connecting Animated Laser Line (Desktop) */}
-          <div className="hidden lg:block absolute top-[3rem] left-[12%] right-[12%] h-1 bg-slate-200/50 z-0 overflow-hidden rounded-full">
-            <motion.div 
-              animate={{ x: ["-100%", "100%"] }}
-              transition={{ duration: 4, ease: "linear", repeat: Infinity }}
-              className="w-1/2 h-full bg-gradient-to-r from-transparent via-blue-500 to-transparent"
-            />
-          </div>
+
           
           {steps.map((step, i) => {
             const Icon = step.icon;
