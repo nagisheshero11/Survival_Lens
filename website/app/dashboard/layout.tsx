@@ -40,10 +40,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const activeTopPosition = activeIndex >= 0 ? activeIndex * 52 : -100;
 
   return (
-    <div className="flex min-h-screen bg-[#f8f9fa] font-sans text-slate-900">
+    <div className="flex h-screen bg-[#f8f9fa] font-sans text-slate-900 overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-slate-100 flex flex-col pt-8">
-        <div className="px-8 mb-10">
+      <aside className="w-64 bg-white border-r border-slate-100 flex flex-col pt-8 h-full">
+        <div className="px-8 mb-10 shrink-0">
           <h1 className="text-xl font-bold text-slate-900 leading-tight">
             Survival Lens
           </h1>
@@ -52,7 +52,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </p>
         </div>
 
-        <nav className="flex-1 px-4 relative space-y-1">
+        <nav className="flex-1 px-4 relative space-y-1 overflow-y-auto">
           {/* Animated Active Background Indicator */}
           {activeIndex >= 0 && (
             <div
@@ -88,7 +88,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="p-4 mt-auto mb-8 border-t border-slate-100/50">
+        <div className="p-4 mt-auto mb-8 border-t border-slate-100/50 shrink-0">
           <Link
             href="/auth/login"
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-bold transition-colors duration-200"
@@ -100,11 +100,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-h-[100vh] overflow-x-hidden">
-        {children}
+      <main className="flex-1 flex flex-col h-full overflow-y-auto overflow-x-hidden relative">
+        <div className="flex-1">
+          {children}
+        </div>
 
         {/* Footer inside Dashboard */}
-        <footer className="mt-auto py-8 px-10 border-t border-slate-200/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex justify-between items-center bg-[#f8f9fa]">
+        <footer className="mt-auto shrink-0 py-8 px-10 border-t border-slate-200/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex justify-between items-center bg-[#f8f9fa]">
           <p>© 2024 SURVIVAL LENS RISK INTELLIGENCE. ALL RIGHTS RESERVED.</p>
           <div className="flex gap-8">
             <Link href="#" className="hover:text-slate-600 transition-colors">Privacy Policy</Link>
