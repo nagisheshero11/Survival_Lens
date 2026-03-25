@@ -17,7 +17,6 @@ const NAV_ITEMS = [
   { name: "Home", href: "/dashboard", icon: Home },
   { name: "Voting", href: "/dashboard/voting", icon: Vote },
   { name: "Plans", href: "/dashboard/plans", icon: LayoutList },
-  { name: "Settings", href: "/dashboard/settings", icon: Settings },
   { name: "Profile", href: "/dashboard/profile", icon: User },
   { name: "Support", href: "/dashboard/support", icon: HelpCircle },
 ];
