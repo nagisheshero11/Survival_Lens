@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AtSign, Lock, Eye, EyeOff } from "lucide-react";
 
 export default function LoginForm() {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [method, setMethod] = useState<"standard" | "otp">("standard");
 
@@ -38,7 +40,7 @@ export default function LoginForm() {
         </button>
       </div>
 
-      <form className="space-y-5">
+      <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); router.push('/dashboard'); }}>
         {/* Username / Email */}
         <div>
           <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
