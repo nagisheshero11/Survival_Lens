@@ -27,17 +27,17 @@ export default function Hero() {
             </div>
 
             <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight text-slate-900 leading-[1.1] mb-6">
-              The Protocol for <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Income Resilience</span>
+              Get Paid When <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">You Can&apos;t Work.</span>
             </h1>
 
             <p className="text-lg text-slate-600 mb-10 max-w-lg leading-relaxed font-medium">
-              Survival Lens uses decentralized intelligence to protect your income against extreme weather, market volatility, and platform shifts. Autonomous stability designed for the modern independent professional.
+              Heavy rain, strikes, or algorithmic drops? We automatically compensate your lost wages. No claims needed. Just pure, mathematical security for independent professionals.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-5 mb-14 relative z-20">
               <button className="group relative overflow-hidden bg-blue-600 text-white font-bold py-4 px-8 rounded-full transition-all flex items-center justify-center gap-2 hover:scale-105 shadow-xl shadow-blue-600/20">
-                <span className="relative z-10">Secure Your Income</span>
+                <span className="relative z-10">Calculate My Weekly Coverage</span>
                 <ArrowRight size={18} className="relative z-10 group-hover:translate-x-1 transition-transform" />
               </button>
               <button className="bg-white hover:text-slate-900 text-slate-700 font-bold py-4 px-8 rounded-full transition-all flex items-center justify-center hover:bg-slate-50 border border-slate-200 shadow-sm shadow-blue-900/5">

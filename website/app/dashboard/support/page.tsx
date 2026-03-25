@@ -68,7 +68,7 @@ export default function SupportPage() {
               </p>
             </div>
             <p className="text-sm font-medium text-slate-600 leading-relaxed italic">
-              "We have updated the multiplier logic to reflect the latest Bureau of Labor Statistics data. The Q3 projections for urban centers have been recalibrated. Please refresh your dashboard to see the changes."
+              &quot;We have updated the multiplier logic to reflect the latest Bureau of Labor Statistics data. The Q3 projections for urban centers have been recalibrated. Please refresh your dashboard to see the changes.&quot;
             </p>
           </div>
         </div>
@@ -153,7 +153,7 @@ export default function SupportPage() {
               </p>
             </div>
             <p className="text-sm font-medium text-red-600 leading-relaxed italic">
-              "Survival Lens currently only supports fiat-based financial risk intelligence for gig workers. We do not have roadmap plans for volatile digital asset monitoring at this stage. Request closed."
+              &quot;Survival Lens currently only supports fiat-based financial risk intelligence for gig workers. We do not have roadmap plans for volatile digital asset monitoring at this stage. Request closed.&quot;
             </p>
           </div>
         </div>

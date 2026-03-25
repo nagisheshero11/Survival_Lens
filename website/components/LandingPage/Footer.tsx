@@ -7,25 +7,20 @@ export default function Footer() {
   return (
     <footer className="w-full bg-slate-950 text-slate-300 py-16 lg:py-24 border-t border-slate-900 relative z-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        
+
         {/* Main Footer Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8 lg:gap-12 mb-16">
-          
+
           {/* Brand & Socials Column (Takes up 2 cols on lg screens) */}
           <div className="col-span-2 md:col-span-4 lg:col-span-2">
-            <Link href="/" className="flex items-center gap-2 cursor-pointer mb-6">
-              <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-                <ShieldCheck size={18} />
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="font-extrabold text-xl tracking-tight text-white">Survival</span>
-                <span className="font-light text-xl tracking-tight text-slate-400">Lens</span>
-              </div>
+            <Link href="/" className="flex items-center gap-1 cursor-pointer mb-6">
+              <span className="font-bold text-xl tracking-tight text-white">Survival</span>
+              <span className="font-light text-xl tracking-tight text-slate-400">Lens</span>
             </Link>
             <p className="text-slate-400 text-sm leading-relaxed mb-8 max-w-sm">
               The decentralized protocol for gig-economy income resilience. Mathematical certainty against unpredictable algorithmic volatility.
             </p>
-            
+
             <div className="flex items-center gap-4">
               <a href="#" className="h-10 w-10 flex items-center justify-center rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-blue-400 hover:bg-slate-800 hover:border-slate-700 transition-all">
                 <span className="font-extrabold text-sm tracking-tighter">𝕏</span>
@@ -94,7 +89,7 @@ export default function Footer() {
           <p className="text-sm text-slate-500 text-center md:text-left">
             © {new Date().getFullYear()} Survival Lens Protocol. All rights reserved.
           </p>
-          
+
           <div className="flex items-center gap-6">
             <a href="#" className="text-sm text-slate-500 hover:text-white transition-colors">Privacy Policy</a>
             <a href="#" className="text-sm text-slate-500 hover:text-white transition-colors">Terms of Service</a>

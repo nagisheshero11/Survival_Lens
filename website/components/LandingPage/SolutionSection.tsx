@@ -19,20 +19,20 @@ export default function SolutionSection() {
 
   return (
     <section id="solution" className="py-24 lg:py-32 relative w-full flex items-center justify-center">
-      
+
       {/* Immersive Deep Background */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden flex justify-center items-center">
         {/* Central Intelligence Core Glow */}
-        <motion.div 
+        <motion.div
           animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-blue-100/40 rounded-full blur-[150px]" 
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-blue-100/40 rounded-full blur-[150px]"
         />
-        
+
         {/* Connecting Data Network Background */}
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #3b82f6 1px, transparent 0)', backgroundSize: '48px 48px' }} />
       </div>
-      
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 w-full">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -42,10 +42,10 @@ export default function SolutionSection() {
           className="mb-24 flex flex-col items-center"
         >
           <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full border border-indigo-100 bg-indigo-50/50 mb-8 w-fit backdrop-blur-sm">
-             <Shield size={14} className="text-indigo-600 animate-pulse" />
-             <span className="text-xs font-bold text-indigo-700 uppercase tracking-widest">The Protocol Solution</span>
+            <Shield size={14} className="text-indigo-600 animate-pulse" />
+            <span className="text-xs font-bold text-indigo-700 uppercase tracking-widest">The Protocol Solution</span>
           </div>
-          
+
           <h2 className="text-4xl lg:text-6xl font-extrabold text-slate-900 mb-6 tracking-tight leading-[1.1]">
             Resilience through <br className="md:hidden" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Decentralized Intelligence</span>
@@ -56,16 +56,9 @@ export default function SolutionSection() {
         </motion.div>
 
         <div className="relative">
-          {/* Animated Connecting Backbone (Desktop Only) */}
-          <div className="hidden lg:block absolute top-[40%] left-[10%] right-[10%] h-1 bg-slate-200/50 z-0 rounded-full overflow-hidden">
-            <motion.div 
-              animate={{ x: ["-100%", "100%"] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-              className="w-1/2 h-full bg-gradient-to-r from-transparent via-blue-500 to-transparent"
-            />
-          </div>
 
-          <motion.div 
+
+          <motion.div
             variants={container}
             initial="hidden"
             whileInView="show"
@@ -88,17 +81,17 @@ export default function SolutionSection() {
             <motion.div variants={item} className="bg-gradient-to-br from-blue-600 to-indigo-600 p-12 text-center lg:text-left shadow-[0_20px_50px_rgba(59,130,246,0.4)] hover:shadow-[0_40px_80px_rgba(59,130,246,0.6)] border border-blue-400/50 transform lg:-translate-y-8 hover:lg:-translate-y-12 transition-all duration-500 relative z-20 mt-8 lg:mt-0 group overflow-hidden rounded-[2.5rem]">
               {/* Dynamic Internal Glows */}
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.25)_0,transparent_60%)] rounded-[2.5rem] group-hover:scale-125 transition-transform duration-1000" />
-              <motion.div 
+              <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
                 className="absolute -top-32 -right-32 text-white/5 pointer-events-none"
               >
                 <Network size={400} />
               </motion.div>
-              
+
               <div className="relative z-10 flex flex-col items-center lg:items-start">
                 <div className="h-20 w-20 rounded-3xl bg-white/20 flex items-center justify-center text-white mb-8 border border-white/30 backdrop-blur-md group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 shadow-xl relative">
-                  <motion.div 
+                  <motion.div
                     animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
                     transition={{ duration: 2, repeat: Infinity }}
                     className="absolute inset-0 bg-white/20 rounded-3xl blur-md"
