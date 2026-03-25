@@ -42,7 +42,7 @@ const kycSchema = new Schema<IKyc>({
 
 const userSchema = new Schema<IUser>({
   fullName: { type: String, required: true },
-  mobile: { type: String, required: true },
+  mobile: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true, lowercase: true },
   password: { type: String, required: true },
   kyc: { type: kycSchema, default: () => ({ status: 'not_started' }) }
