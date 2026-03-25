@@ -17,7 +17,7 @@ export default function Navbar() {
 
       const offset = window.innerHeight / 3;
       const sections = ["home", "about", "features", "pricing"];
-      
+
       for (const section of sections) {
         const element = document.getElementById(section);
         if (element) {
@@ -46,18 +46,16 @@ export default function Navbar() {
   ];
 
   return (
-    <motion.nav 
+    <motion.nav
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
-      className={`fixed top-0 w-full z-50 transition-all duration-300 ${
-        isScrolled ? "py-4" : "py-6"
-      }`}
+      className={`fixed top-0 w-full z-50 transition-all duration-300 ${isScrolled ? "py-4" : "py-6"
+        }`}
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className={`flex justify-between items-center transition-all duration-500 rounded-full px-6 py-3 ${
-          isScrolled ? "glass-card bg-white/70" : "bg-transparent"
-        }`}>
+        <div className={`flex justify-between items-center transition-all duration-500 rounded-full px-6 py-3 ${isScrolled ? "glass-card bg-white/70" : "bg-transparent"
+          }`}>
           {/* Logo */}
           <Link href="/" className="flex-shrink-0 flex items-center gap-1 cursor-pointer">
             <span className="font-bold text-2xl tracking-tight text-slate-900">Survival</span>
@@ -121,9 +119,8 @@ export default function Navbar() {
                   key={link.id}
                   href={`#${link.id}`}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className={`text-base font-medium ${
-                    activeSection === link.id ? "text-blue-600 font-bold" : "text-slate-600 hover:text-slate-900"
-                  }`}
+                  className={`text-base font-medium ${activeSection === link.id ? "text-blue-600 font-bold" : "text-slate-600 hover:text-slate-900"
+                    }`}
                 >
                   {link.label}
                 </a>
