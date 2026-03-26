@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { registerUser } from "@/(services)/auth";
 import { User, AtSign, Phone, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 
 // Reduced padding from py-4 to py-3.5 for a sleeker profile
@@ -12,6 +13,32 @@ const iconClass = "absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-ev
 export default function RegisterForm() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+
+  const [fullName, setFullName] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const data = await registerUser({ fullName, mobile, email, password });
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      
+      router.push("/dashboard");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="bg-white rounded-[2.5rem] p-8 sm:p-10 w-full max-w-[480px] h-[700px] flex flex-col justify-center shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 relative z-10 mx-auto">
@@ -24,8 +51,14 @@ export default function RegisterForm() {
         </p>
       </div>
 
+      {error && (
+        <div className="mb-4 p-3 bg-red-50/50 border border-red-100 rounded-xl text-red-600 text-xs font-semibold text-center">
+          {error}
+        </div>
+      )}
+
       {/* Reduced vertical space between rows */}
-      <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); router.push('/dashboard'); }}>
+      <form className="space-y-4" onSubmit={handleRegister}>
         
         {/* Full Name */}
         <div>
@@ -34,7 +67,14 @@ export default function RegisterForm() {
             <div className={iconClass}>
               <User size={16} strokeWidth={2.5} />
             </div>
-            <input type="text" placeholder="John Doe" className={inputClass} />
+            <input 
+              type="text" 
+              placeholder="John Doe" 
+              className={inputClass} 
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+            />
           </div>
         </div>
 
@@ -45,7 +85,14 @@ export default function RegisterForm() {
             <div className={iconClass}>
               <Phone size={16} strokeWidth={2.5} />
             </div>
-            <input type="tel" placeholder="+91 98765 43210" className={inputClass} />
+            <input 
+              type="tel" 
+              placeholder="+91 98765 43210" 
+              className={inputClass} 
+              value={mobile}
+              onChange={(e) => setMobile(e.target.value)}
+              required
+            />
           </div>
         </div>
 
@@ -56,7 +103,14 @@ export default function RegisterForm() {
             <div className={iconClass}>
               <AtSign size={16} strokeWidth={2.5} />
             </div>
-            <input type="email" placeholder="name@example.com" className={inputClass} />
+            <input 
+              type="text" 
+              placeholder="name@example.com" 
+              className={inputClass} 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
         </div>
 
@@ -70,6 +124,9 @@ export default function RegisterForm() {
             <input
               type={showPassword ? "text" : "password"}
               placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
               className="w-full pl-[2.75rem] pr-12 py-3.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-medium text-slate-900 tracking-widest placeholder-slate-400 transition-all outline-none"
             />
             <button type="button" onClick={() => setShowPassword(!showPassword)}
@@ -82,10 +139,11 @@ export default function RegisterForm() {
         {/* Submit */}
         <div className="pt-2">
           <button type="submit"
-            className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3.5 rounded-2xl transition-all text-sm mb-6 flex justify-center items-center gap-2 shadow-xl shadow-slate-900/10 group group-active:scale-[0.98]"
+            disabled={isLoading}
+            className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3.5 rounded-2xl transition-all text-sm mb-6 flex justify-center items-center gap-2 shadow-xl shadow-slate-900/10 group group-active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0"
           >
-            Create Secure Account
-            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            {isLoading ? "Creating Account..." : "Create Secure Account"}
+            {!isLoading && <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />}
           </button>
         </div>
 
@@ -101,7 +159,7 @@ export default function RegisterForm() {
 
         <p className="text-center text-sm font-medium text-slate-500 mt-4">
           Already have an account?{" "}
-          <a href="/auth/login" className="font-bold text-slate-900 hover:text-blue-600 transition-colors">
+          <a href="/login" className="font-bold text-slate-900 hover:text-blue-600 transition-colors">
             Log in securely
           </a>
         </p>

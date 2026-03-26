@@ -117,7 +117,7 @@ export default function Navbar() {
 
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center space-x-6">
-            <Link href="/auth/login" className="text-sm font-bold text-slate-500 hover:text-blue-600 transition-colors">
+            <Link href="/login" className="text-sm font-bold text-slate-500 hover:text-blue-600 transition-colors">
               Login
             </Link>
             <button className="relative group overflow-hidden bg-slate-900 border border-slate-800 text-white text-sm font-bold py-2.5 px-6 rounded-full transition-all duration-300 shadow-lg hover:shadow-blue-500/30">

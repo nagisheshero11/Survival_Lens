@@ -1,14 +1,41 @@
 import { Document, Model, Schema, models, model } from 'mongoose';
 
+export const COMPANY_CATEGORY_MAP: Record<string, string[]> = {
+  "Food Delivery": ["Zomato", "Swiggy"],
+  "Quick Commerce": ["Blinkit", "Zepto", "Swiggy Instamart", "BigBasket Now", "Flipkart Minutes"],
+  "E-commerce & Marketplaces": ["Amazon India", "Flipkart", "Meesho", "Myntra"],
+  "Logistics & Delivery-as-a-Service": ["Delhivery", "Shadowfax", "Ecom Express", "Porter", "Shiprocket", "XpressBees"],
+  "Pharmacy & Healthcare": ["PharmEasy", "Tata 1mg", "Apollo Pharmacy"],
+  "D2C Brands": ["Nykaa", "Mamaearth", "boAt"],
+  "Hyperlocal & Multi-service": ["Dunzo", "Borzo", "WeFast"]
+};
+
+export const ALLOWED_CATEGORIES = Object.keys(COMPANY_CATEGORY_MAP);
+export const ALLOWED_COMPANIES = Object.values(COMPANY_CATEGORY_MAP).flat();
+
+export interface ICompany {
+  category: string;
+  company: string;
+  partnerId?: string;
+  dashboardScreenshot?: string;
+  verified: boolean;
+}
+
+const companySchema = new Schema<ICompany>({
+  category: { type: String, required: true, enum: ALLOWED_CATEGORIES },
+  company: { type: String, required: true, enum: ALLOWED_COMPANIES },
+  partnerId: { type: String, default: '' },
+  dashboardScreenshot: { type: String, default: '' },
+  verified: { type: Boolean, default: false }
+});
+
 export interface IKyc {
   aadhaar: string;
   pan: string;
   photo: string;
   city: string;
   age?: number;
-  company: string;
-  partnerId?: string;
-  dashboardScreenshot?: string;
+  companies: ICompany[];
   avgWeeklyIncome?: number;
   avgWorkingHours?: number;
   status: "not_started" | "partial" | "pending" | "approved" | "rejected";
@@ -31,9 +58,18 @@ const kycSchema = new Schema<IKyc>({
   photo: { type: String, default: '' },
   city: { type: String, default: '' },
   age: { type: Number },
-  company: { type: String, default: '' },
-  partnerId: { type: String, default: '' },
-  dashboardScreenshot: { type: String, default: '' },
+  companies: { 
+    type: [companySchema], 
+    default: [],
+    validate: {
+      validator: function(v: ICompany[]) {
+        if (!v || v.length === 0) return true;
+        const firstCategory = v[0].category;
+        return v.every(c => c.category === firstCategory);
+      },
+      message: 'All companies must belong to the same category.'
+    }
+  },
   avgWeeklyIncome: { type: Number },
   avgWorkingHours: { type: Number },
   status: {

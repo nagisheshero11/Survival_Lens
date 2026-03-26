@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser } from '@/middleware/auth';
-import User from '@/models/User';
+import User, { COMPANY_CATEGORY_MAP } from '@/models/User';
 import connectDB from '@/lib/db';
 
 export async function GET(request: NextRequest) {
@@ -40,64 +40,103 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Invalid JSON format" }, { status: 400 });
     }
     
-    // Accept any subset of KYC fields
-    const allowedFields = [
+    // Accept any subset of scalar KYC fields
+    const configScalarFields = [
       'aadhaar', 'pan', 'photo', 'city', 'age', 
-      'company', 'partnerId', 'dashboardScreenshot', 
       'avgWeeklyIncome', 'avgWorkingHours'
     ];
     
     const updates: Record<string, any> = {};
-    for (const field of allowedFields) {
+    for (const field of configScalarFields) {
       if (rawBody[field] !== undefined) {
         updates[`kyc.${field}`] = rawBody[field];
       }
     }
     
-    // Add updatedAt
     updates['kyc.updatedAt'] = new Date();
     
-    // Get the merged KYC object to evaluate status accurately
-    // The previous fields are preserved in currentUser.toObject() if available
     const existingKyc = currentUser.kyc ? (currentUser.toObject ? currentUser.toObject().kyc : currentUser.kyc) : {};
-    const mergedKyc = { ...existingKyc, ...rawBody };
+    const existingCompanies = existingKyc.companies || [];
+    const finalCompanies = [...existingCompanies];
     
-    // Logic for status: Determine how many "important" fields are present
-    const requiredFieldsForPending = [
-      'aadhaar', 'pan', 'photo', 'city', 'company', 
-      'partnerId', 'dashboardScreenshot'
-    ];
+    const pushOperations: any[] = [];
     
-    let filledRequiredCount = 0;
-    for (const field of requiredFieldsForPending) {
-      // Check if truthy and not an empty string
-      if (mergedKyc[field] && String(mergedKyc[field]).trim() !== '') {
-        filledRequiredCount++;
+    if (rawBody.companies && Array.isArray(rawBody.companies)) {
+      for (const incoming of rawBody.companies) {
+        if (!incoming.category || !incoming.company) {
+          return NextResponse.json({ message: "Category and company are required for each company entry" }, { status: 400 });
+        }
+        
+        const allowedComps = COMPANY_CATEGORY_MAP[incoming.category];
+        if (!allowedComps || !allowedComps.includes(incoming.company)) {
+          return NextResponse.json({ message: `Invalid company '${incoming.company}' for category '${incoming.category}'` }, { status: 400 });
+        }
+        
+        const existingIndex = existingCompanies.findIndex((c: any) => c.company === incoming.company);
+        
+        let verified = false;
+        
+        if (existingIndex !== -1) {
+          // Update existing target in final array
+          const existing = existingCompanies[existingIndex];
+          const partnerId = incoming.partnerId !== undefined ? incoming.partnerId : existing.partnerId;
+          const dashboardScreenshot = incoming.dashboardScreenshot !== undefined ? incoming.dashboardScreenshot : existing.dashboardScreenshot;
+          
+          verified = !!(partnerId && dashboardScreenshot);
+          
+          if (incoming.category !== undefined) updates[`kyc.companies.${existingIndex}.category`] = incoming.category;
+          if (incoming.partnerId !== undefined) updates[`kyc.companies.${existingIndex}.partnerId`] = incoming.partnerId;
+          if (incoming.dashboardScreenshot !== undefined) updates[`kyc.companies.${existingIndex}.dashboardScreenshot`] = incoming.dashboardScreenshot;
+          updates[`kyc.companies.${existingIndex}.verified`] = verified;
+          
+          finalCompanies[existingIndex] = { ...existing, ...incoming, verified, partnerId, dashboardScreenshot };
+        } else {
+          // Prevent duplicates natively inside the incoming array
+          const finalIndex = finalCompanies.findIndex((c: any) => c.company === incoming.company);
+          if (finalIndex !== -1) continue;
+          
+          verified = !!(incoming.partnerId && incoming.dashboardScreenshot);
+          const newCompany = {
+            category: incoming.category,
+            company: incoming.company,
+            partnerId: incoming.partnerId || '',
+            dashboardScreenshot: incoming.dashboardScreenshot || '',
+            verified
+          };
+          pushOperations.push(newCompany);
+          finalCompanies.push(newCompany);
+        }
       }
     }
     
+    if (finalCompanies.length > 0) {
+      const firstCategory = finalCompanies[0].category;
+      if (finalCompanies.some((c: any) => c.category !== firstCategory)) {
+        return NextResponse.json({ message: "You can only add companies from a single category." }, { status: 400 });
+      }
+    }
+    
+    // Status Logic
+    const hasVerifiedCompany = finalCompanies.some((c: any) => c.verified === true);
     let newStatus = existingKyc.status || 'not_started';
     
-    // If it's already approved or rejected, we might want to change it to pending again if they update it, 
-    // or keep it. The user said: "If most required fields present -> "pending"".
-    // We will set status based explicitly on the count.
-    if (filledRequiredCount >= 5) {
+    if (hasVerifiedCompany) {
       newStatus = 'pending';
-    } else if (filledRequiredCount > 0) {
-      newStatus = 'partial';
     } else {
-      newStatus = 'not_started';
+      newStatus = 'partial';
     }
     
     updates['kyc.status'] = newStatus;
     
     await connectDB();
     
-    // Ensure the operation uses $set to update only provided fields in DB
-    await User.updateOne(
-      { _id: currentUser._id },
-      { $set: updates }
-    );
+    if (Object.keys(updates).length > 0) {
+      await User.updateOne({ _id: currentUser._id }, { $set: updates });
+    }
+    
+    if (pushOperations.length > 0) {
+      await User.updateOne({ _id: currentUser._id }, { $push: { 'kyc.companies': { $each: pushOperations } } });
+    }
     
     return NextResponse.json({ 
       message: "KYC updated", 
