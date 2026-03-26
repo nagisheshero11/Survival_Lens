@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { loginUser } from "@/(services)/auth";
 import { AtSign, Lock, Eye, EyeOff, Phone, MessageSquare, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -14,8 +15,8 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [method, setMethod] = useState<"standard" | "otp">("standard");
   const [otpSent, setOtpSent] = useState(false);
-  
-  const [email, setEmail] = useState("");
+
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -23,26 +24,20 @@ export default function LoginForm() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (method !== "standard") return;
-    
+
     setIsLoading(true);
     setError("");
 
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      const payload = identifier.includes("@")
+        ? { email: identifier, password }
+        : { mobile: identifier, password };
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Invalid credentials. Please try again.");
-      }
+      const data = await loginUser(payload);
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
-      
+
       router.push("/dashboard");
     } catch (err: any) {
       setError(err.message);
@@ -64,17 +59,15 @@ export default function LoginForm() {
       <div className="flex p-1.5 bg-slate-50 rounded-2xl mb-10 border border-slate-100">
         <button
           onClick={() => { setMethod("standard"); setOtpSent(false); }}
-          className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${
-            method === "standard" ? "bg-white text-blue-600 shadow-[0_2px_10px_rgba(0,0,0,0.04)]" : "text-slate-500 hover:text-slate-700"
-          }`}
+          className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${method === "standard" ? "bg-white text-blue-600 shadow-[0_2px_10px_rgba(0,0,0,0.04)]" : "text-slate-500 hover:text-slate-700"
+            }`}
         >
           Email & Password
         </button>
         <button
           onClick={() => { setMethod("otp"); setOtpSent(false); }}
-          className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${
-            method === "otp" ? "bg-white text-blue-600 shadow-[0_2px_10px_rgba(0,0,0,0.04)]" : "text-slate-500 hover:text-slate-700"
-          }`}
+          className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${method === "otp" ? "bg-white text-blue-600 shadow-[0_2px_10px_rgba(0,0,0,0.04)]" : "text-slate-500 hover:text-slate-700"
+            }`}
         >
           SMS OTP
         </button>
@@ -96,17 +89,17 @@ export default function LoginForm() {
               transition={{ duration: 0.25 }}
             >
               <div>
-                <label className={labelClass}>Email Address</label>
+                <label className={labelClass}>Email or Phone</label>
                 <div className="relative group">
                   <div className={iconClass}>
                     <AtSign size={16} strokeWidth={2.5} />
                   </div>
-                  <input 
-                    type="email" 
-                    placeholder="name@example.com" 
+                  <input
+                    type="text"
+                    placeholder="name@example.com or 9876543210"
                     className={inputClass}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
                     required
                   />
                 </div>
@@ -232,7 +225,7 @@ export default function LoginForm() {
 
         <p className="text-center text-[15px] font-medium text-slate-500 mt-6">
           New to Survival Lens?{" "}
-          <a href="/auth/register" className="font-bold text-slate-900 hover:text-blue-600 transition-colors">
+          <a href="../register" className="font-bold text-slate-900 hover:text-blue-600 transition-colors">
             Create an account
           </a>
         </p>

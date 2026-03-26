@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { registerUser } from "@/(services)/auth";
 import { User, AtSign, Phone, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 
 // Reduced padding from py-4 to py-3.5 for a sleeker profile
@@ -26,17 +27,7 @@ export default function RegisterForm() {
     setError("");
 
     try {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, mobile, email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Registration failed. Please check your details.");
-      }
+      const data = await registerUser({ fullName, mobile, email, password });
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
@@ -113,7 +104,7 @@ export default function RegisterForm() {
               <AtSign size={16} strokeWidth={2.5} />
             </div>
             <input 
-              type="email" 
+              type="text" 
               placeholder="name@example.com" 
               className={inputClass} 
               value={email}
@@ -168,7 +159,7 @@ export default function RegisterForm() {
 
         <p className="text-center text-sm font-medium text-slate-500 mt-4">
           Already have an account?{" "}
-          <a href="/auth/login" className="font-bold text-slate-900 hover:text-blue-600 transition-colors">
+          <a href="/login" className="font-bold text-slate-900 hover:text-blue-600 transition-colors">
             Log in securely
           </a>
         </p>
