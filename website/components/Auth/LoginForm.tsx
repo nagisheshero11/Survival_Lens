@@ -14,6 +14,42 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [method, setMethod] = useState<"standard" | "otp">("standard");
   const [otpSent, setOtpSent] = useState(false);
+  
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (method !== "standard") return;
+    
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Invalid credentials. Please try again.");
+      }
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      
+      router.push("/dashboard");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="bg-white rounded-[2.5rem] p-8 sm:p-10 w-full max-w-[480px] h-[700px] flex flex-col justify-center shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 relative z-10 mx-auto">
@@ -44,7 +80,13 @@ export default function LoginForm() {
         </button>
       </div>
 
-      <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); router.push('/dashboard'); }}>
+      {error && (
+        <div className="mb-4 p-3 bg-red-50/50 border border-red-100 rounded-xl text-red-600 text-xs font-semibold text-center">
+          {error}
+        </div>
+      )}
+
+      <form className="space-y-4" onSubmit={method === "standard" ? handleLogin : (e) => e.preventDefault()}>
 
         <AnimatePresence mode="wait">
           {/* ── STANDARD fields ── */}
@@ -59,7 +101,14 @@ export default function LoginForm() {
                   <div className={iconClass}>
                     <AtSign size={16} strokeWidth={2.5} />
                   </div>
-                  <input type="email" placeholder="name@example.com" className={inputClass} />
+                  <input 
+                    type="email" 
+                    placeholder="name@example.com" 
+                    className={inputClass}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
                 </div>
               </div>
 
@@ -77,6 +126,9 @@ export default function LoginForm() {
                   <input
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
                     className="w-full pl-[2.75rem] pr-14 py-3.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-medium text-slate-900 tracking-widest placeholder-slate-400 transition-all outline-none"
                   />
                   <button type="button" onClick={() => setShowPassword(!showPassword)}
@@ -160,10 +212,11 @@ export default function LoginForm() {
 
         <div className="pt-2">
           <button type="submit"
-            className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3.5 rounded-2xl hover:-translate-y-0.5 transition-all text-sm mb-6 flex justify-center items-center gap-2 shadow-xl shadow-slate-900/10 group group-active:scale-[0.98]"
+            disabled={isLoading}
+            className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3.5 rounded-2xl hover:-translate-y-0.5 transition-all text-sm mb-6 flex justify-center items-center gap-2 shadow-xl shadow-slate-900/10 group group-active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0"
           >
-            {method === "otp" ? (otpSent ? "Verify & Enter Dashboard" : "Continue Securely") : "Enter Dashboard"}
-            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            {isLoading ? "Authenticating..." : (method === "otp" ? (otpSent ? "Verify & Enter Dashboard" : "Continue Securely") : "Enter Dashboard")}
+            {!isLoading && <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />}
           </button>
         </div>
 
