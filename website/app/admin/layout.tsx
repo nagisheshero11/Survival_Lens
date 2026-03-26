@@ -19,7 +19,7 @@ import {
 const NAV_ITEMS = [
   { name: "Overview",        href: "/admin",                  icon: LayoutDashboard, section: "overview" },
   { name: "Claims Queue",    href: "/admin/claims-queue",     icon: ClipboardList,   section: "claims-queue" },
-  { name: "User Management", href: "/admin#user-management",  icon: Users,           section: "user-management" },
+  { name: "User Management", href: "/admin/user-management",  icon: Users,           section: "user-management" },
   { name: "Real-Time Voting",href: "/admin#voting",           icon: Vote,            section: "voting" },
   { name: "Risk Analytics",  href: "/admin#risk-analytics",  icon: BarChart3,       section: "risk-analytics" },
   { name: "System Settings", href: "/admin#system-settings", icon: Settings,        section: "system-settings" },
