@@ -64,9 +64,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="plans"
         options={{
-          title: "Plans",
+          title: "Coverage Plans",
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="layers" focused={focused} />
+            <TabIcon name="shield" focused={focused} />
           ),
         }}
       />
@@ -80,11 +80,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="settings"
+        name="support"
         options={{
-          title: "Settings",
+          title: "Raise Ticket",
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="settings" focused={focused} />
+            <TabIcon name="help-circle" focused={focused} />
           ),
         }}
       />
