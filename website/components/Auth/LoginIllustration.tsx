@@ -1,33 +1,20 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { ShieldCheck, TrendingUp, Zap, Clock, Star } from "lucide-react";
+import { ShieldCheck, TrendingUp, Zap, Clock, Activity } from "lucide-react";
 import { useState, useEffect } from "react";
 
 // Animated bar chart data — weekly earnings
 const WEEKS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const EARNINGS = [820, 640, 950, 480, 1100, 760, 920];
+const EARNINGS = [320, 440, 550, 480, 1100, 760, 920];
 const MAX = Math.max(...EARNINGS);
 
-// Recent activity feed items
+// Live Feed Items
 const ACTIVITY = [
   { icon: ShieldCheck, color: "emerald", label: "Rain coverage triggered", amount: "+₹120", time: "2h ago" },
-  { icon: Zap,         color: "blue",    label: "Heat surge protection",   amount: "+₹80",  time: "Yesterday" },
-  { icon: ShieldCheck, color: "emerald", label: "Road block payout",       amount: "+₹200", time: "3 days ago" },
+  { icon: Zap,         color: "indigo",  label: "Algorithm Drop Protected", amount: "+₹840", time: "Yesterday" },
+  { icon: Activity,    color: "blue",    label: "Zone Volatility Secured", amount: "+₹450", time: "3 days ago" },
 ];
-
-// Stat cards
-const STATS = [
-  { label: "Protected this month",  value: "₹2,340", sub: "+12% vs last month",   color: "emerald" },
-  { label: "Active streak",         value: "14 days", sub: "No coverage gap",      color: "blue"    },
-  { label: "Disruptions covered",   value: "7 events", sub: "Rain, Heat, Traffic",  color: "violet"  },
-];
-
-const COLOR_MAP: Record<string, string> = {
-  emerald: "#10b981",
-  blue:    "#3b82f6",
-  violet:  "#8b5cf6",
-};
 
 export default function LoginIllustration() {
   const [barsVisible, setBarsVisible] = useState(false);
@@ -35,132 +22,178 @@ export default function LoginIllustration() {
 
   // Bars animate in on mount
   useEffect(() => {
-    const t = setTimeout(() => setBarsVisible(true), 400);
+    const t = setTimeout(() => setBarsVisible(true), 600);
     return () => clearTimeout(t);
   }, []);
 
   // Cycle through activity items
   useEffect(() => {
-    const id = setInterval(() => setActivityIdx(i => (i + 1) % ACTIVITY.length), 3500);
+    const id = setInterval(() => setActivityIdx(i => (i + 1) % ACTIVITY.length), 4000);
     return () => clearInterval(id);
   }, []);
 
   return (
-    <div className="relative w-full h-full bg-[#0b1120] overflow-hidden flex flex-col justify-between p-10 border-r border-slate-800/50">
-
-      {/* Grid */}
-      <div className="absolute inset-0 opacity-[0.05] pointer-events-none"
-        style={{
-          backgroundImage: `linear-gradient(#94a3b8 1px, transparent 1px), linear-gradient(90deg, #94a3b8 1px, transparent 1px)`,
-          backgroundSize: "60px 60px",
-        }}
-      />
-      <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-600/10 rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-72 h-72 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none" />
-
-      {/* Welcome header */}
-      <div className="relative z-10">
-        <div className="flex items-center gap-2 mb-6">
-          <Star size={13} className="text-yellow-400 fill-yellow-400" />
-          <span className="text-yellow-400 text-xs font-bold uppercase tracking-widest">Welcome Back</span>
-        </div>
-        <h2 className="text-white text-3xl font-bold leading-tight tracking-tight mb-2">
-          Your earnings are<br />protected. Always.
-        </h2>
-        <p className="text-slate-400 text-sm max-w-xs">
-          Here&apos;s a snapshot of your coverage activity this week.
-        </p>
+    <div className="relative w-full h-full bg-slate-50 overflow-hidden flex flex-col justify-center p-12 lg:p-16 border-r border-slate-200/50">
+      
+      {/* ── IMMERSIVE BACKGROUND EFFECTS ── */}
+      <div className="absolute inset-0 z-0">
+        {/* Soft pastel mesh gradient */}
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-400/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-400/10 rounded-full blur-[150px] pointer-events-none" />
+        <div className="absolute top-[40%] left-[20%] w-[300px] h-[300px] bg-sky-300/10 rounded-full blur-[100px] pointer-events-none" />
+        
+        {/* Tech Grid (Subtle Dark on Light) */}
+        <div 
+          className="absolute inset-0 opacity-[0.25] mix-blend-multiply"
+          style={{
+            backgroundImage: `linear-gradient(#cbd5e1 1px, transparent 1px), linear-gradient(90deg, #cbd5e1 1px, transparent 1px)`,
+            backgroundSize: "40px 40px",
+            maskImage: "radial-gradient(ellipse at center, black 40%, transparent 80%)"
+          }}
+        />
       </div>
 
-      {/* Weekly earnings chart */}
-      <div className="relative z-10 bg-slate-900/50 border border-slate-800/60 rounded-2xl p-5 mt-6">
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-white text-sm font-bold">Weekly Earnings</p>
-          <div className="flex items-center gap-1.5 text-emerald-400">
-            <TrendingUp size={13} />
-            <span className="text-xs font-bold">+18% this week</span>
+      <div className="relative z-10 w-full max-w-lg mx-auto flex flex-col gap-10">
+        
+        {/* ── WELCOME HEADER ── */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="mb-4"
+        >
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-blue-200 bg-white/70 mb-6 backdrop-blur-md shadow-sm">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.6)]" />
+            <span className="text-blue-700 text-[10px] font-black uppercase tracking-[0.2em] pt-px">Secure Node Active</span>
           </div>
-        </div>
-        <div className="flex items-end gap-2 h-28">
-          {WEEKS.map((day, i) => {
-            const heightPct = (EARNINGS[i] / MAX) * 100;
-            const isFriday = i === 4;
-            return (
-              <div key={day} className="flex flex-col items-center gap-1.5 flex-1 h-full justify-end">
-                <div className="w-full flex-1 flex items-end">
-                  <motion.div
-                    className="w-full rounded-t-md"
-                    style={{
-                      height: `${heightPct}%`,
-                      backgroundColor: isFriday ? "#3b82f6" : "rgba(59,130,246,0.28)",
-                      transformOrigin: "bottom",
-                      boxShadow: isFriday ? "0 0 12px rgba(59,130,246,0.4)" : "none",
-                    }}
-                    initial={{ scaleY: 0 }}
-                    animate={{ scaleY: barsVisible ? 1 : 0 }}
-                    transition={{ duration: 0.6, delay: i * 0.07, ease: [0.34, 1.56, 0.64, 1] }}
-                  />
-                </div>
-                <span className="text-[10px] text-slate-500 font-medium shrink-0">{day}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+          <h2 className="text-slate-900 text-4xl lg:text-5xl font-black leading-[1.1] tracking-tight mb-4 drop-shadow-sm">
+            Guaranteed <br/>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+              Income Floor.
+            </span>
+          </h2>
+          <p className="text-slate-600 text-[15px] font-medium leading-relaxed max-w-sm">
+            Live infrastructure preview. Watch the automated protocol intelligently buffer real-world disruption metrics.
+          </p>
+        </motion.div>
 
-      {/* Stat cards */}
-      <div className="relative z-10 grid grid-cols-3 gap-3 mt-4">
-        {STATS.map((s, i) => (
-          <motion.div
-            key={s.label}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 + i * 0.1, duration: 0.5 }}
-            className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-3"
-          >
-            <p className="font-bold text-white text-base leading-none mb-1">{s.value}</p>
-            <p className="text-[10px] text-slate-400 leading-snug mb-1.5">{s.label}</p>
-            <p className="text-[10px] font-bold" style={{ color: COLOR_MAP[s.color] }}>{s.sub}</p>
-          </motion.div>
-        ))}
-      </div>
+        {/* ── MAIN DASHBOARD WIDGET ── */}
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+          className="bg-white/80 backdrop-blur-2xl border border-slate-200 rounded-[2rem] p-6 lg:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.06)] relative overflow-hidden group"
+        >
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full blur-[80px] -mr-32 -mt-32 transition-opacity group-hover:opacity-100 opacity-50 duration-700 pointer-events-none" />
+          
+          <div className="flex items-center justify-between mb-8 relative z-10">
+            <div>
+               <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Weekly Payouts</p>
+               <h3 className="text-slate-900 text-2xl font-black tracking-tight flex items-baseline gap-1">
+                 <span className="text-slate-400 font-medium">₹</span>4,150
+               </h3>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-600 shadow-sm">
+              <TrendingUp size={16} strokeWidth={2.5} />
+              <span className="text-xs font-black tracking-wide">+34.5%</span>
+            </div>
+          </div>
 
-      {/* Live recent activity ticker */}
-      <div className="relative z-10 mt-4 bg-slate-900/50 border border-slate-800/60 rounded-2xl p-4 overflow-hidden">
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">Recent Activity</p>
-          <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
-            <Clock size={11} /> Live
-          </span>
-        </div>
-        <div className="relative h-12 overflow-hidden">
-          <AnimatePresence mode="wait">
-            {ACTIVITY.map((item, i) =>
-              i === activityIdx ? (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -16 }}
-                  transition={{ duration: 0.4, ease: "easeInOut" }}
-                  className="absolute inset-0 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                      style={{ background: `${COLOR_MAP[item.color]}20`, border: `1px solid ${COLOR_MAP[item.color]}40` }}>
-                      <item.icon size={14} style={{ color: COLOR_MAP[item.color] }} />
+          {/* Chart Area */}
+          <div className="flex items-end gap-3 h-32 lg:h-40 relative z-10">
+            {WEEKS.map((day, i) => {
+              const heightPct = (EARNINGS[i] / MAX) * 100;
+              const isFriday = i === 4; // Highlighted Bar
+              return (
+                <div key={day} className="flex flex-col items-center gap-3 flex-1 h-full justify-end group/bar cursor-pointer">
+                  <div className="w-full flex-1 flex items-end relative w-full max-w-[40px]">
+                    
+                    {/* Tooltip on hover */}
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] font-black py-1.5 px-2 rounded-lg shadow-xl pointer-events-none whitespace-nowrap z-20">
+                      ₹{EARNINGS[i]}
                     </div>
-                    <div>
-                      <p className="text-white text-xs font-semibold">{item.label}</p>
-                      <p className="text-slate-500 text-[10px]">{item.time}</p>
-                    </div>
+
+                    <motion.div
+                      className="w-full rounded-md lg:rounded-lg relative overflow-hidden"
+                      style={{
+                        height: `${heightPct}%`,
+                        background: isFriday 
+                          ? "linear-gradient(to top, #3b82f6, #6366f1)" // Solid bright gradient for active
+                          : "rgba(226, 232, 240, 0.6)", // Slate 200 for inactive
+                        boxShadow: isFriday ? "0 10px 25px rgba(59,130,246,0.35)" : "none",
+                        border: isFriday ? "1px solid rgba(255,255,255,0.4)" : "1px solid rgba(255,255,255,0.8)",
+                        transformOrigin: "bottom",
+                      }}
+                      initial={{ scaleY: 0 }}
+                      animate={{ scaleY: barsVisible ? 1 : 0 }}
+                      transition={{ duration: 0.8, delay: i * 0.08, type: "spring", bounce: 0.3 }}
+                    >
+                      {/* Active inner highlight */}
+                      {isFriday && <div className="absolute top-0 left-0 w-full h-1/3 bg-gradient-to-b from-white/30 to-transparent" />}
+                    </motion.div>
                   </div>
-                  <span className="text-emerald-400 text-sm font-bold shrink-0">{item.amount}</span>
-                </motion.div>
-              ) : null
-            )}
-          </AnimatePresence>
-        </div>
+                  <span className={`text-[10px] font-bold tracking-wider ${isFriday ? "text-blue-600" : "text-slate-400"}`}>{day}</span>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+
+        {/* ── LIVE ACTIVITY FEED ── */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
+          className="bg-white/60 backdrop-blur-xl border border-slate-200 rounded-[1.5rem] p-5 relative overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.03)]"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2">
+              <Activity size={12} className="text-blue-600" /> Live Protocol Events
+            </p>
+            <span className="flex items-center gap-1.5 text-[9px] text-blue-600 font-bold uppercase tracking-widest bg-blue-50 px-2 py-1 rounded-md border border-blue-100/50">
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" /> Syncing
+            </span>
+          </div>
+
+          <div className="relative h-14 overflow-hidden">
+            <AnimatePresence mode="wait">
+              {ACTIVITY.map((item, i) =>
+                i === activityIdx ? (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20, filter: "blur(4px)" }}
+                    transition={{ duration: 0.5, ease: "circOut" }}
+                    className="absolute inset-0 flex items-center justify-between bg-white border border-slate-100 rounded-xl p-3 shadow-sm"
+                  >
+                    <div className="flex items-center gap-3 md:gap-4">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border`}
+                        style={{ 
+                          backgroundColor: item.color === 'emerald' ? '#f0fdf4' : item.color === 'indigo' ? '#eef2ff' : '#eff6ff',
+                          borderColor: item.color === 'emerald' ? '#d1fae5' : item.color === 'indigo' ? '#e0e7ff' : '#dbeafe',
+                          color: item.color === 'emerald' ? '#059669' : item.color === 'indigo' ? '#4f46e5' : '#2563eb'
+                        }}>
+                        <item.icon size={18} strokeWidth={2.5} />
+                      </div>
+                      <div>
+                        <p className="text-slate-900 text-sm font-bold tracking-wide">{item.label}</p>
+                        <p className="text-slate-500 text-[11px] font-medium">{item.time}</p>
+                      </div>
+                    </div>
+                    <span 
+                      className="text-sm font-black tracking-tight"
+                      style={{ color: item.color === 'emerald' ? '#059669' : item.color === 'indigo' ? '#4f46e5' : '#2563eb' }}
+                    >
+                      {item.amount}
+                    </span>
+                  </motion.div>
+                ) : null
+              )}
+            </AnimatePresence>
+          </div>
+        </motion.div>
+
       </div>
     </div>
   );
