@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -18,7 +18,7 @@ import {
 
 const NAV_ITEMS = [
   { name: "Overview",        href: "/admin",                  icon: LayoutDashboard, section: "overview" },
-  { name: "Claims Queue",    href: "/admin#claims-queue",     icon: ClipboardList,   section: "claims-queue" },
+  { name: "Claims Queue",    href: "/admin/claims-queue",     icon: ClipboardList,   section: "claims-queue" },
   { name: "User Management", href: "/admin#user-management",  icon: Users,           section: "user-management" },
   { name: "Real-Time Voting",href: "/admin#voting",           icon: Vote,            section: "voting" },
   { name: "Risk Analytics",  href: "/admin#risk-analytics",  icon: BarChart3,       section: "risk-analytics" },
@@ -27,16 +27,13 @@ const NAV_ITEMS = [
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const [activeSection, setActiveSection] = useState("overview");
 
-  const handleNavClick = (section: string, href: string) => {
-    setActiveSection(section);
-    if (href.includes("#")) {
-      const id = href.split("#")[1];
-      const el = document.getElementById(id);
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
+  // Derive active item: exact match for /admin, startsWith for sub-routes, href match for hash anchors
+  function isActive(href: string) {
+    if (href === "/admin") return pathname === "/admin";
+    if (href.includes("#")) return pathname === "/admin";
+    return pathname.startsWith(href);
+  }
 
   return (
     <div className="flex h-screen bg-[#f4f5f7] font-sans text-slate-900 overflow-hidden">
@@ -59,23 +56,23 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const isActive = activeSection === item.section;
+            const active = isActive(item.href);
             return (
-              <button
+              <Link
                 key={item.section}
-                onClick={() => handleNavClick(item.section, item.href)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 text-left ${
-                  isActive
+                href={item.href}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+                  active
                     ? "bg-blue-50 text-blue-700 font-bold"
                     : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
                 }`}
               >
-                <Icon size={16} className={isActive ? "text-blue-600" : ""} strokeWidth={isActive ? 2.5 : 2} />
+                <Icon size={16} className={active ? "text-blue-600" : ""} strokeWidth={active ? 2.5 : 2} />
                 {item.name}
-                {isActive && (
+                {active && (
                   <div className="ml-auto w-1 h-5 bg-blue-600 rounded-full" />
                 )}
-              </button>
+              </Link>
             );
           })}
         </nav>
