@@ -1,276 +1,241 @@
 "use client";
 
-import { motion, AnimatePresence, useAnimationFrame } from "framer-motion";
-import { CloudRain, Flame, Construction, Wallet, ShieldCheck, TrendingDown, Waves, Wind } from "lucide-react";
-import { useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { CloudRain, Flame, Construction, ShieldCheck, Wallet, TrendingDown, TrendingUp, Activity } from "lucide-react";
+import { useState, useEffect } from "react";
 
-const ROUTE_PATH = "M 60 500 C 160 420, 200 460, 300 360 C 380 280, 400 310, 500 220 C 580 150, 640 180, 720 100";
-
-function samplePath(svgEl: SVGPathElement | null, t: number) {
-  if (!svgEl) return { x: 60, y: 500 };
-  const len = svgEl.getTotalLength();
-  const pt = svgEl.getPointAtLength(t * len);
-  return { x: pt.x, y: pt.y };
-}
-
-// Each phase: which single zone is active + label info
-// Cycle: 36s total
-// 0-5s:   Normal
-// 5-10s:  Rain
-// 10-15s: Flood
-// 15-20s: Roadblock
-// 20-25s: Wind
-// 25-28s: Heat
-// 28-32s: Earnings drop (all dim)
-// 32-36s: Wallet credited
-const CYCLE = 36000;
-type Phase = "normal" | "rain" | "flood" | "roadblock" | "wind" | "heat" | "drop" | "credited";
-
-function getPhase(ms: number): Phase {
-  const t = ms % CYCLE;
-  if (t < 5000)  return "normal";
-  if (t < 10000) return "rain";
-  if (t < 15000) return "flood";
-  if (t < 20000) return "roadblock";
-  if (t < 25000) return "wind";
-  if (t < 28000) return "heat";
-  if (t < 32000) return "drop";
-  return "credited";
-}
-
-interface Zone {
-  id: string;
-  x: number;
-  y: number;
-  r: number;
-  Icon: React.ElementType;
-  color: string;
-  label: string;
-  activePhase: Phase; // only visible in this phase (+ drop)
-}
-
-const ZONES: Zone[] = [
-  { id: "rain",      x: 280, y: 370, r: 72,  Icon: CloudRain,    color: "#3b82f6", label: "Heavy Rain",    activePhase: "rain" },
-  { id: "flood",     x: 190, y: 455, r: 78,  Icon: Waves,        color: "#06b6d4", label: "Flood Zone",    activePhase: "flood" },
-  { id: "roadblock", x: 490, y: 225, r: 62,  Icon: Construction, color: "#f97316", label: "Roadblock",     activePhase: "roadblock" },
-  { id: "wind",      x: 370, y: 305, r: 60,  Icon: Wind,         color: "#a855f7", label: "Strong Wind",   activePhase: "wind" },
-  { id: "heat",      x: 650, y: 155, r: 68,  Icon: Flame,        color: "#ef4444", label: "Heat Zone",     activePhase: "heat" },
+const EVENTS = [
+  { id: 1, icon: CloudRain, color: "blue", label: "Monsoon Downpour", impact: "Velocity drop: 40%", loss: "-₹300", payout: "+₹300", bg: "bg-blue-500/5", border: "border-blue-500/20", iconBg: "bg-blue-600", text: "text-blue-500" },
+  { id: 2, icon: Flame, color: "red", label: "Extreme Heatwaves", impact: "Risk zone entered", loss: "-₹450", payout: "+₹450", bg: "bg-red-500/5", border: "border-red-500/20", iconBg: "bg-red-500", text: "text-red-500" },
+  { id: 3, icon: Construction, color: "orange", label: "Unplanned Detour", impact: "Traffic congestion", loss: "-₹200", payout: "+₹200", bg: "bg-orange-500/5", border: "border-orange-500/20", iconBg: "bg-orange-500", text: "text-orange-500" }
 ];
 
-const DISRUPTION_PHASES: Phase[] = ["rain", "flood", "roadblock", "wind", "heat", "drop"];
-
-const PHASE_LABEL: Partial<Record<Phase, { icon: React.ElementType; color: string; text: string; sub?: string }>> = {
-  normal:    { icon: ShieldCheck,  color: "#10b981", text: "Coverage active",         sub: "Rider on route, all clear" },
-  rain:      { icon: CloudRain,    color: "#3b82f6", text: "Heavy rain detected",      sub: "Rider slowing down" },
-  flood:     { icon: Waves,        color: "#06b6d4", text: "Flood zone ahead",         sub: "Route partially blocked" },
-  roadblock: { icon: Construction, color: "#f97316", text: "Roadblock detected",       sub: "Rerouting in progress" },
-  wind:      { icon: Wind,         color: "#a855f7", text: "Strong winds — 60km/h",   sub: "Rider speed reduced" },
-  heat:      { icon: Flame,        color: "#ef4444", text: "Extreme heat zone",        sub: "Work unsafe, coverage active" },
-  drop:      { icon: TrendingDown, color: "#f43f5e", text: "Earnings drop detected",   sub: "Coverage triggered automatically" },
-};
-
 export default function AnimatedMapIllustration() {
-  const pathRef = useRef<SVGPathElement>(null);
-  const [bikePos, setBikePos] = useState({ x: 60, y: 500 });
-  const tRef = useRef(0);
-  const [phase, setPhase] = useState<Phase>("normal");
-  const startRef = useRef<number | null>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [phase, setPhase] = useState<"stable" | "crash" | "buffer">("stable");
 
-  useAnimationFrame((time, delta) => {
-    if (startRef.current === null) startRef.current = time;
-    const elapsed = time - startRef.current;
-    const isDisrupted = DISRUPTION_PHASES.includes(phase);
-    const speed = isDisrupted ? 0.25 : 1;
-    tRef.current = (tRef.current + (delta / 14000) * speed) % 1;
-    setBikePos(samplePath(pathRef.current, tRef.current));
-    setPhase(getPhase(elapsed));
-  });
+  // Animation Sequence Logic
+  // 0s: Stable (Graph flat/climbing gently)
+  // 1.5s: Crash (Disruption alert pops, graph plummets)
+  // 3s: Buffer (Survival Lens activates, graph fills back up)
+  // 5.5s: Next Cycle
+  useEffect(() => {
+    let crashTimer: NodeJS.Timeout;
+    let bufferTimer: NodeJS.Timeout;
 
-  const isDisrupted = DISRUPTION_PHASES.includes(phase);
-  const labelInfo = PHASE_LABEL[phase];
+    const runSequence = () => {
+      setPhase("stable");
+      
+      crashTimer = setTimeout(() => {
+        setPhase("crash");
+        
+        bufferTimer = setTimeout(() => {
+          setPhase("buffer");
+        }, 1500);
+
+      }, 1500);
+    };
+
+    runSequence();
+    const loop = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % EVENTS.length);
+      runSequence();
+    }, 5500);
+
+    return () => {
+      clearInterval(loop);
+      clearTimeout(crashTimer);
+      clearTimeout(bufferTimer);
+    };
+  }, []);
+
+  const activeEvent = EVENTS[currentIndex];
 
   return (
-    <div className="relative w-full h-full bg-[#0b1120] overflow-hidden flex flex-col justify-between p-10 border-r border-slate-800/50">
-
-      {/* Grid */}
-      <div className="absolute inset-0 opacity-[0.06] pointer-events-none"
-        style={{ backgroundImage: `linear-gradient(#94a3b8 1px, transparent 1px), linear-gradient(90deg, #94a3b8 1px, transparent 1px)`, backgroundSize: "60px 60px" }}
-      />
-
-      {/* Ambient background glow — shifts color per phase */}
-      <motion.div
-        className="absolute inset-0 pointer-events-none"
-        animate={{
-          background: phase === "rain" || phase === "flood"
-            ? "radial-gradient(ellipse 70% 50% at 35% 65%, rgba(59,130,246,0.14) 0%, transparent 70%)"
-            : phase === "heat"
-            ? "radial-gradient(ellipse 60% 40% at 75% 25%, rgba(239,68,68,0.12) 0%, transparent 70%)"
-            : phase === "wind"
-            ? "radial-gradient(ellipse 60% 40% at 50% 50%, rgba(168,85,247,0.10) 0%, transparent 70%)"
-            : phase === "roadblock"
-            ? "radial-gradient(ellipse 60% 40% at 65% 35%, rgba(249,115,22,0.10) 0%, transparent 70%)"
-            : "radial-gradient(ellipse 50% 40% at 30% 30%, rgba(16,185,129,0.08) 0%, transparent 70%)"
-        }}
-        transition={{ duration: 1.5 }}
-      />
-
-      {/* Header */}
-      <div className="relative z-10 shrink-0">
-        <div className="flex items-center gap-2 mb-4">
-          <motion.span className="w-2 h-2 rounded-full bg-emerald-400"
-            animate={{ opacity: [1, 0.3, 1], scale: [1, 1.4, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
-          <span className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Live Simulation</span>
-        </div>
-        <h2 className="text-white text-3xl font-bold leading-tight tracking-tight mb-2">
-          Earn even when<br />you can&apos;t work
-        </h2>
-        <p className="text-slate-400 text-sm max-w-xs">
-          Real-time income protection for gig workers across India.
-        </p>
-      </div>
-
-      {/* Map */}
-      <div className="relative z-10 flex-1 min-h-0 my-3">
-        <svg viewBox="0 0 780 560" className="w-full h-full" style={{ overflow: "visible" }}>
+    <div className="relative w-full h-full bg-[#f8fafc] overflow-hidden flex flex-col justify-center p-12 lg:p-16 border-r border-slate-200/50">
+      
+      {/* ── AMBIENT ENVIRONMENT ── */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[0%] left-[-10%] w-[600px] h-[600px] bg-blue-400/10 rounded-full blur-[140px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-emerald-400/10 rounded-full blur-[120px]" />
+        
+        <svg className="absolute inset-0 w-full h-full opacity-[0.4]" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <linearGradient id="routeGradAM" x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor={isDisrupted ? "#f97316" : "#3b82f6"} />
-              <stop offset="100%" stopColor={isDisrupted ? "#ef4444" : "#10b981"} />
-            </linearGradient>
+            <pattern id="lightGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#cbd5e1" strokeWidth="0.5" />
+            </pattern>
+            <radialGradient id="gridFade" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="black" stopOpacity="1" />
+              <stop offset="80%" stopColor="black" stopOpacity="0" />
+            </radialGradient>
           </defs>
-
-          {/* Ghost route */}
-          <path d={ROUTE_PATH} fill="none" stroke="#1e293b" strokeWidth="6" strokeLinecap="round" />
-
-          {/* Glowing active route */}
-          <motion.path
-            ref={pathRef}
-            d={ROUTE_PATH}
-            fill="none"
-            stroke="url(#routeGradAM)"
-            strokeWidth="5"
-            strokeLinecap="round"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: isDisrupted ? 40 : 12, repeat: Infinity, ease: "linear" }}
-          />
-
-          {/* Destination */}
-          <circle cx="720" cy="100" r="7" fill="#10b981" />
-          <motion.circle cx="720" cy="100" r="7" fill="none" stroke="#10b981" strokeWidth="2"
-            animate={{ r: [7, 28], opacity: [0.7, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
-
-          {/* Disruption Zones — only the active one shows */}
-          {ZONES.map((z) => {
-            const isActive = z.activePhase === phase;
-            const isDrop = phase === "drop"; // during drop, show all dimmed
-            const show = isActive || isDrop;
-            const dim = isDrop && !isActive;
-
-            return (
-              <AnimatePresence key={z.id}>
-                {show && (
-                  <motion.g
-                    key={`${z.id}-${phase}`}
-                    transform={`translate(${z.x}, ${z.y})`}
-                    initial={{ opacity: 0, scale: 0.4 }}
-                    animate={{
-                      opacity: dim ? 0.3 : [0.8, 1, 0.8],
-                      scale: dim ? 0.7 : [1, 1.06, 1],
-                    }}
-                    exit={{ opacity: 0, scale: 0.4 }}
-                    transition={{ duration: dim ? 0.3 : 2.8, repeat: dim ? 0 : Infinity, ease: "easeInOut" }}
-                  >
-                    {/* Outer glow */}
-                    <circle r={z.r} fill={z.color} opacity={dim ? 0.04 : 0.10} />
-                    <circle r={z.r * 0.62} fill={z.color} opacity={dim ? 0.06 : 0.15} />
-                    {/* Expanding ring pulse */}
-                    {!dim && (
-                      <motion.circle r={z.r * 0.6} fill="none" stroke={z.color} strokeWidth="2"
-                        animate={{ r: [z.r * 0.5, z.r * 1.15], opacity: [0.6, 0] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                      />
-                    )}
-                    {/* Icon */}
-                    <foreignObject x={-22} y={-22} width="44" height="44">
-                      <div className="flex items-center justify-center w-full h-full" style={{ opacity: dim ? 0.4 : 1 }}>
-                        <z.Icon size={32} color={z.color} strokeWidth={1.8} />
-                      </div>
-                    </foreignObject>
-                    {/* Label badge — only on active */}
-                    {isActive && (
-                      <foreignObject x={-(z.r)} y={z.r + 8} width={z.r * 2} height="18">
-                        <div className="flex justify-center">
-                          <span style={{ fontSize: 10, color: z.color, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
-                            {z.label}
-                          </span>
-                        </div>
-                      </foreignObject>
-                    )}
-                  </motion.g>
-                )}
-              </AnimatePresence>
-            );
-          })}
-
-          {/* Bike */}
-          <g transform={`translate(${bikePos.x}, ${bikePos.y})`}>
-            <circle r="17"
-              fill="#0f172a"
-              stroke={isDisrupted ? (labelInfo?.color ?? "#f97316") : "#3b82f6"}
-              strokeWidth="2.5"
-              style={{ filter: `drop-shadow(0 0 12px ${isDisrupted ? (labelInfo?.color ?? "rgba(249,115,22,0.9)") : "rgba(59,130,246,0.9)"})` }}
-            />
-            <text textAnchor="middle" dominantBaseline="central" fontSize="16">🚴</text>
-          </g>
+          <rect width="100%" height="100%" fill="url(#lightGrid)" mask="url(#gridFade)" />
         </svg>
       </div>
 
-      {/* Status label — one at a time */}
-      <div className="relative z-10 shrink-0 min-h-[90px] flex items-end">
-        <AnimatePresence mode="wait">
-          {phase !== "credited" && labelInfo && (
-            <motion.div key={phase}
-              initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.4 }}
-              className="flex items-center gap-3.5 px-5 py-3.5 rounded-2xl border"
-              style={{
-                backgroundColor: `${labelInfo.color}12`,
-                borderColor: `${labelInfo.color}30`,
-              }}
-            >
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                style={{ backgroundColor: `${labelInfo.color}20`, border: `1px solid ${labelInfo.color}40` }}>
-                <labelInfo.icon size={18} color={labelInfo.color} strokeWidth={2} />
-              </div>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest mb-0.5" style={{ color: labelInfo.color }}>{labelInfo.text}</p>
-                {labelInfo.sub && <p className="text-white text-sm font-medium">{labelInfo.sub}</p>}
-              </div>
-            </motion.div>
-          )}
+      <div className="relative z-10 w-full max-w-lg mx-auto flex flex-col gap-10">
+        
+        {/* ── TYPOGRAPHY HEADER ── */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-full border border-emerald-200/80 bg-white/80 mb-6 backdrop-blur-md shadow-sm">
+            <TrendingUp size={14} className="text-emerald-500" strokeWidth={2.5} />
+            <span className="text-slate-800 text-[10px] font-black uppercase tracking-[0.2em] pt-px">Eradicate Income Volatility</span>
+          </div>
+          <h2 className="text-slate-900 text-4xl lg:text-5xl font-black leading-[1.05] tracking-tight mb-5 drop-shadow-sm">
+            End the struggle.<br/>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-blue-600 to-emerald-500">
+              Guarantee your pay.
+            </span>
+          </h2>
+          <p className="text-slate-500 text-[15px] font-medium leading-relaxed max-w-md">
+            Gig driving is financially brutal and unpredictable. Survival Lens stabilizes your earnings by instantly covering real-world wage drops.
+          </p>
+        </motion.div>
 
-          {phase === "credited" && (
-            <motion.div key="credited"
-              initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 18 }}
-              transition={{ duration: 0.5, type: "spring", stiffness: 180, damping: 18 }}
-              className="relative bg-slate-900/80 backdrop-blur-md border border-slate-700/50 rounded-2xl p-4 flex items-center gap-4 shadow-2xl overflow-hidden"
-            >
-              <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-blue-500 to-emerald-400" />
-              <div className="w-11 h-11 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
-                <Wallet size={20} className="text-emerald-400" />
+        {/* ── VOLATILITY ENGINE WIDGET ── */}
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.96, y: 30 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 1.2, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full bg-white/70 backdrop-blur-2xl border border-white/60 rounded-[2.5rem] p-3 shadow-[0_8px_30px_rgb(0,0,0,0.04),_0_30px_60px_rgb(0,0,0,0.04)] relative z-20"
+        >
+          <div className="bg-[#fcfdfd] border border-slate-100 rounded-[2rem] p-5 h-[320px] flex flex-col w-full relative overflow-hidden">
+            
+            {/* Live Chart Status Bar */}
+            <div className="flex justify-between items-center mb-4 relative z-20">
+              <div className="flex items-center gap-2">
+                <Activity size={12} className={phase === 'crash' ? 'text-red-500' : 'text-slate-400'} />
+                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">Live Earnings Trajectory</span>
               </div>
-              <div>
-                <p className="text-white font-bold text-2xl leading-none mb-1">+₹120 credited</p>
-                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">All disruptions covered · Survival Lens</p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              
+              <AnimatePresence mode="wait">
+                 {phase === "stable" && (
+                   <motion.div key="st" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-2 py-1 bg-slate-100 border border-slate-200 rounded-md">
+                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Optimal</span>
+                   </motion.div>
+                 )}
+                 {phase === "crash" && (
+                   <motion.div key="cr" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-2 py-1 bg-red-50 border border-red-200 rounded-md">
+                     <span className="text-[9px] font-black uppercase tracking-widest text-red-600">Disrupted</span>
+                   </motion.div>
+                 )}
+                 {phase === "buffer" && (
+                   <motion.div key="bu" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-2 py-1 bg-emerald-50 border border-emerald-200 rounded-md shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                     <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600">Buffered</span>
+                   </motion.div>
+                 )}
+              </AnimatePresence>
+            </div>
+
+            {/* SVG Live Volatility Graph */}
+            <div className="absolute bottom-6 left-0 w-full h-32 pr-4 pl-4 z-10">
+               <svg width="100%" height="100%" viewBox="0 0 400 100" preserveAspectRatio="none" className="overflow-visible">
+                 
+                 {/* Standard Baseline Path */}
+                 <motion.path 
+                   d="M 50 80 L 100 70 L 150 75 L 200 65 L 250 20 L 300 20 L 350 20"
+                   fill="none" 
+                   stroke="#e2e8f0" 
+                   strokeWidth="3" 
+                   strokeLinecap="round" 
+                   strokeDasharray="4 6"
+                 />
+
+                 {/* The Actual Earnings Trajectory */}
+                 <motion.path 
+                   d={phase === "crash" ? "M 50 80 L 100 70 L 150 75 L 200 65 L 250 90 L 300 95 L 350 95" : phase === "buffer" ? "M 50 80 L 100 70 L 150 75 L 200 65 L 250 20 L 300 20 L 350 20" : "M 50 80 L 100 70 L 150 75 L 200 65 L 250 60 L 300 55 L 350 50"}
+                   fill="none" 
+                   stroke={phase === "crash" ? "#ef4444" : phase === "buffer" ? "#10b981" : "#3b82f6"}
+                   strokeWidth="4" 
+                   strokeLinecap="round" 
+                   animate={{ d: phase === "crash" ? "M 50 80 L 100 70 L 150 75 L 200 65 L 250 90 L 300 95 L 350 95" : phase === "buffer" ? "M 50 80 L 100 70 L 150 75 L 200 65 L 250 20 L 300 20 L 350 20" : "M 50 80 L 100 70 L 150 75 L 200 65 L 250 60 L 300 55 L 350 50" }}
+                   transition={{ duration: 0.6, type: "spring", bounce: 0.2 }}
+                 />
+                 
+                 {/* The Buffer Glow Fill (Only visible during buffer) */}
+                 <AnimatePresence>
+                   {phase === "buffer" && (
+                     <motion.path 
+                       initial={{ opacity: 0 }}
+                       animate={{ opacity: 1 }}
+                       exit={{ opacity: 0 }}
+                       transition={{ duration: 0.5 }}
+                       d="M 200 65 L 250 20 L 300 20 L 350 20 L 350 95 L 300 95 L 250 90 Z"
+                       fill="rgba(16,185,129,0.2)"
+                     />
+                   )}
+                 </AnimatePresence>
+
+                 {/* Floating Indicator Dot */}
+                 <motion.circle 
+                   r="6" 
+                   fill={phase === "crash" ? "#ef4444" : phase === "buffer" ? "#10b981" : "#3b82f6"}
+                   animate={{ 
+                     cx: phase === "buffer" ? 350 : phase === "crash" ? 280 : 250, 
+                     cy: phase === "crash" ? 93 : phase === "buffer" ? 20 : 60
+                   }}
+                   transition={{ duration: 0.8, type: "spring", bounce: 0.1 }}
+                   style={{ filter: "drop-shadow(0px 4px 6px rgba(0,0,0,0.1))" }}
+                 />
+               </svg>
+            </div>
+
+            {/* Overlays */}
+            <div className="relative z-20 mt-4 flex flex-col gap-3">
+              
+              <AnimatePresence mode="wait">
+                {phase === "crash" && (
+                  <motion.div 
+                    key="alert"
+                    initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                    className={`bg-white border ${activeEvent.border} rounded-xl p-3 flex items-center justify-between shadow-xl cursor-default mx-2 mt-4`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-lg ${activeEvent.iconBg} flex items-center justify-center shrink-0 text-white`}>
+                        <activeEvent.icon size={16} strokeWidth={2.5} />
+                      </div>
+                      <div>
+                        <h4 className="text-[12px] font-black tracking-tight text-slate-900">{activeEvent.label}</h4>
+                        <p className={`text-[10px] font-bold text-red-500`}>Pay Dropping: {activeEvent.loss}</p>
+                      </div>
+                    </div>
+                    <TrendingDown className="text-red-500 mr-2 opacity-50" size={18} />
+                  </motion.div>
+                )}
+
+                {phase === "buffer" && (
+                  <motion.div 
+                    key="payout"
+                    initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                    className={`bg-slate-900 border border-slate-700 rounded-xl p-3 flex items-center justify-between shadow-[0_15px_30px_rgba(15,23,42,0.2)] mx-2 mt-4`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0 text-emerald-400 border border-emerald-500/30`}>
+                        <Wallet size={16} strokeWidth={2.5} />
+                      </div>
+                      <div>
+                        <h4 className="text-[12px] font-bold tracking-tight text-white">Loss Buffered</h4>
+                        <p className={`text-[10px] uppercase tracking-widest font-black text-emerald-400`}>Income Stabilized</p>
+                      </div>
+                    </div>
+                    <span className="text-emerald-400 font-black tracking-tight mr-2">{activeEvent.payout}</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+            </div>
+
+          </div>
+        </motion.div>
+
       </div>
     </div>
   );

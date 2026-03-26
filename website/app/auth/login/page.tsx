@@ -19,7 +19,7 @@ export default function LoginPage() {
         <div className="absolute top-[-10%] left-[-20%] w-[30rem] h-[30rem] bg-indigo-100/40 rounded-full mix-blend-multiply filter blur-[80px] opacity-50 pointer-events-none" />
         <div className="absolute top-[40%] right-[-20%] w-[25rem] h-[25rem] bg-emerald-50/40 rounded-full mix-blend-multiply filter blur-[80px] opacity-50 pointer-events-none" />
 
-        <div className="relative z-10 w-full max-w-[440px] flex flex-col items-center justify-center h-full py-4">
+        <div className="relative z-10 w-full max-w-[480px] flex flex-col items-center justify-center h-full py-4">
           <div className="mb-4 shrink-0">
             <AuthHeader />
           </div>
@@ -39,6 +39,14 @@ export default function LoginPage() {
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">ISO 27001 Certified</span>
             </div>
           </div>
+
+          {/* Simple Footer Links for Layout Balance */}
+          <div className="flex gap-4 justify-center mt-8 text-xs text-slate-400 font-bold uppercase tracking-wider shrink-0">
+            <a href="#" className="hover:text-slate-600 transition-colors">Privacy Policy</a>
+            <span>•</span>
+            <a href="#" className="hover:text-slate-600 transition-colors">Terms of Service</a>
+          </div>
+
         </div>
       </div>
 

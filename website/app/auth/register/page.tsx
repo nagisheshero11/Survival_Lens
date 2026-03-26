@@ -19,18 +19,18 @@ export default function RegisterPage() {
         <div className="absolute top-[-10%] left-[-20%] w-[30rem] h-[30rem] bg-indigo-100/40 rounded-full mix-blend-multiply filter blur-[80px] opacity-50 pointer-events-none"></div>
         <div className="absolute top-[40%] right-[-20%] w-[25rem] h-[25rem] bg-emerald-50/40 rounded-full mix-blend-multiply filter blur-[80px] opacity-50 pointer-events-none"></div>
 
-        <div className="relative z-10 w-full max-w-[440px] flex flex-col items-center justify-center h-full py-4">
+        <div className="relative z-10 w-full max-w-[480px] flex flex-col items-center justify-center h-full py-4">
           
-          <div className="mb-2 shrink-0">
+          <div className="mb-4 shrink-0">
             <AuthHeader />
           </div>
           
-          <div className="w-full">
+          <div className="w-full shrink-0">
             <RegisterForm />
           </div>
 
           {/* Security Badges */}
-          <div className="flex flex-col sm:flex-row justify-center items-center gap-6 mt-2 opacity-70">
+          <div className="flex flex-col sm:flex-row justify-center items-center gap-6 mt-2 opacity-70 shrink-0">
             <div className="flex items-center gap-1.5">
               <ShieldCheck size={14} className="text-slate-500" />
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
@@ -46,7 +46,7 @@ export default function RegisterPage() {
           </div>
           
           {/* Simple Footer Links for Layout Balance */}
-          <div className="flex gap-4 justify-center mt-8 text-xs text-slate-400 font-bold uppercase tracking-wider">
+          <div className="flex gap-4 justify-center mt-8 text-xs text-slate-400 font-bold uppercase tracking-wider shrink-0">
             <a href="#" className="hover:text-slate-600 transition-colors">Privacy Policy</a>
             <span>•</span>
             <a href="#" className="hover:text-slate-600 transition-colors">Terms of Service</a>
