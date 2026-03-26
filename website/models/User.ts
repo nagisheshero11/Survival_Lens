@@ -7,6 +7,8 @@ export interface IKyc {
   city: string;
   age?: number;
   company: string;
+  partnerId?: string;
+  dashboardScreenshot?: string;
   avgWeeklyIncome?: number;
   avgWorkingHours?: number;
   status: "not_started" | "partial" | "pending" | "approved" | "rejected";
@@ -30,6 +32,8 @@ const kycSchema = new Schema<IKyc>({
   city: { type: String, default: '' },
   age: { type: Number },
   company: { type: String, default: '' },
+  partnerId: { type: String, default: '' },
+  dashboardScreenshot: { type: String, default: '' },
   avgWeeklyIncome: { type: Number },
   avgWorkingHours: { type: Number },
   status: {
