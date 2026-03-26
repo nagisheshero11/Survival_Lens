@@ -1,13 +1,20 @@
 import { View, Text, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { TabSwitcher } from "../components/TabSwitcher";
 import { InputField } from "../components/InputField";
 import { PrimaryButton } from "../components/PrimaryButton";
 
 export default function LoginScreen() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("Standard");
+
+  const handleLogin = () => {
+    // Authenticate logic would go here
+    router.replace("/(tabs)");
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50" edges={['top', 'bottom']}>
@@ -53,7 +60,7 @@ export default function LoginScreen() {
             />
 
             <View className="mt-6 mb-10">
-              <PrimaryButton title="Login to Dashboard" onPress={() => {}} />
+              <PrimaryButton title="Login to Dashboard" onPress={handleLogin} />
             </View>
 
             <View className="flex-row items-center mb-10">
