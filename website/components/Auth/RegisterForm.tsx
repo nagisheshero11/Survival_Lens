@@ -29,7 +29,6 @@ export default function RegisterForm() {
     try {
       const data = await registerUser({ fullName, mobile, email, password });
 
-      localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       
       router.push("/dashboard");

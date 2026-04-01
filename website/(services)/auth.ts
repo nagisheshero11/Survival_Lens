@@ -4,6 +4,7 @@ export const loginUser = async (credentials: any) => {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(credentials),
+    credentials: "include",
   });
 
   const data = await res.json();
@@ -21,6 +22,7 @@ export const registerUser = async (userData: any) => {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(userData),
+    credentials: "include",
   });
 
   const data = await res.json();
@@ -31,3 +33,18 @@ export const registerUser = async (userData: any) => {
 
   return data;
 };
+
+export const logoutUser = async () => {
+  const API_URL = process.env.SERVER_API_URL || "";
+  const res = await fetch(`${API_URL}/api/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    throw new Error("Logout failed.");
+  }
+
+  return true;
+};
+
