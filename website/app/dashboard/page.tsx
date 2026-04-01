@@ -1,6 +1,57 @@
-import { Bell, Wallet, ShieldCheck, ArrowRight, Activity, CloudRain, Flame, Construction, BadgeCheck } from "lucide-react";
+"use client";
+import { useState, useEffect } from "react";
+import { Bell, Wallet, ShieldCheck, ArrowRight, Activity, CloudRain, Flame, Construction, BadgeCheck, Loader2 } from "lucide-react";
 
 export default function DashboardPage() {
+  const [profileData, setProfileData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMockProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+        const res = await fetch('/api/user/mock-profile', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setProfileData(data);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMockProfile();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400">
+         <Loader2 className="animate-spin mb-4 text-blue-500" size={32} />
+         <p className="font-bold tracking-tight">Syncing Live Metrics...</p>
+      </div>
+    );
+  }
+
+  const mockProfile = profileData?.mockProfile || null;
+  const userDetails = profileData?.userDetails || null;
+
+  const fullName = userDetails?.fullName || "Marcus Sterling";
+  const initials = fullName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
+  const accountLevel = userDetails?.accountLevel || "Pro";
+  const companies = mockProfile?.company || "Uber, Swiggy";
+  
+  // Format the mock API values or fallback to default
+  const formattedIncome = mockProfile?.avgDailyIncome 
+    ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(mockProfile.avgDailyIncome)
+    : "₹12,450";
+    
   return (
     <div className="p-8 lg:p-12 max-w-7xl mx-auto w-full relative">
       
@@ -31,7 +82,7 @@ export default function DashboardPage() {
              <div className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full translate-x-1 -translate-y-1"></div>
           </button>
           <div className="w-11 h-11 rounded-2xl bg-slate-100 overflow-hidden ring-1 ring-slate-200 shadow-sm flex items-center justify-center text-slate-400 font-black tracking-tight cursor-pointer hover:ring-blue-200 transition-colors">
-            MS
+            {initials}
           </div>
         </div>
       </div>
@@ -43,23 +94,23 @@ export default function DashboardPage() {
         <div className="bg-white/80 backdrop-blur-2xl rounded-[2rem] p-6 lg:p-8 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex flex-col items-center text-center">
           <div className="relative mb-5">
             <div className="w-20 h-20 bg-gradient-to-tr from-slate-100 to-slate-200 rounded-full border-[3px] border-white shadow-md flex items-center justify-center text-xl font-black text-slate-400 tracking-tight">
-               MS
+               {initials}
             </div>
             <div className="absolute bottom-0 right-0 bg-white rounded-full w-6 h-6 flex items-center justify-center shadow-sm border border-slate-100">
               <BadgeCheck size={16} className="text-blue-500 fill-blue-50" />
             </div>
           </div>
-          <h2 className="text-lg font-black text-slate-900 mb-1 tracking-tight">Marcus Sterling</h2>
+          <h2 className="text-lg font-black text-slate-900 mb-1 tracking-tight">{fullName}</h2>
           <p className="text-xs text-slate-400 font-bold tracking-widest uppercase mb-6">Verified Gig Driver</p>
           
           <div className="w-full flex justify-between px-2 border-t border-slate-100/60 pt-5">
             <div className="text-left">
                <p className="text-[9px] uppercase font-black text-slate-300 tracking-[0.2em] mb-1">Account Level</p>
-               <p className="text-[13px] font-bold text-slate-900 tracking-tight">Pro</p>
+               <p className="text-[13px] font-bold text-slate-900 tracking-tight">{accountLevel}</p>
             </div>
             <div className="text-right">
                <p className="text-[9px] uppercase font-black text-slate-300 tracking-[0.2em] mb-1">Platforms Linked</p>
-               <p className="text-[13px] font-bold text-slate-900 tracking-tight">Uber, Swiggy</p>
+               <p className="text-[13px] font-bold text-slate-900 tracking-tight">{companies}</p>
             </div>
           </div>
         </div>
@@ -77,7 +128,7 @@ export default function DashboardPage() {
               <Wallet size={20} className="text-emerald-400" />
             </div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Available Buffer</p>
-            <h2 className="text-4xl lg:text-5xl font-black tracking-tight mb-2">₹12,450</h2>
+            <h2 className="text-4xl lg:text-5xl font-black tracking-tight mb-2">{formattedIncome}</h2>
             <p className="text-xs font-medium text-slate-500">+₹850 accrued from disruptions this week.</p>
           </div>
 

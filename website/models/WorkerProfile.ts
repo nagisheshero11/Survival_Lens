@@ -30,7 +30,7 @@ const workerProfileSchema = new Schema<IWorkerProfile>({
   rating: { type: Number },
   city: { type: String },
   zone: { type: String }
-}, { timestamps: true });
+}, { timestamps: true, collection: 'WorkerProfile' });
 
 export const getWorkerProfileModel = async () => {
   const conn = await connectCompanyDB();

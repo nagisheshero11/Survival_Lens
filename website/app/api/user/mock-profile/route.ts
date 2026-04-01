@@ -1,0 +1,75 @@
+import { NextRequest, NextResponse } from "next/server";
+import { authenticateUser } from "@/middleware/auth";
+import { getWorkerProfileModel } from "@/models/WorkerProfile";
+
+export async function GET(request: NextRequest) {
+  try {
+    const authResult = await authenticateUser(request);
+    
+    if (authResult.error) {
+      return NextResponse.json(
+        { error: authResult.error }, 
+        { status: authResult.status || 401 }
+      );
+    }
+
+    const user = authResult.user!;
+
+    // Extract the partner ID (Worker ID)
+    let partnerId = null;
+    let companyName = "";
+    
+    if (user.kyc && user.kyc.companies && user.kyc.companies.length > 0) {
+      // Prioritize verified companies if available
+      const targetCompany = user.kyc.companies.find(c => c.verified && c.partnerId) || user.kyc.companies[0];
+      partnerId = targetCompany.partnerId;
+      companyName = targetCompany.company;
+    }
+
+    if (!partnerId) {
+      return NextResponse.json(
+        { error: "No Worker ID linked to this account. Please complete KYC." }, 
+        { status: 404 }
+      );
+    }
+
+    // Connect to the Mock Database to fetch real-time worker metrics
+    const WorkerProfile = await getWorkerProfileModel();
+    const mockProfile = await WorkerProfile.findOne({ userId: partnerId });
+
+    if (!mockProfile) {
+      return NextResponse.json(
+        { error: `Mock profile not found for Worker ID: ${partnerId}` }, 
+        { status: 404 }
+      );
+    }
+
+    // Return the fetched Mock DB data cleanly
+    return NextResponse.json({
+      mockProfile: {
+        company: mockProfile.company || companyName,
+        city: mockProfile.city,
+        zone: mockProfile.zone,
+        workingHoursPerDay: mockProfile.workingHoursPerDay,
+        workingDaysPerWeek: mockProfile.workingDaysPerWeek,
+        avgOrdersPerDay: mockProfile.avgOrdersPerDay,
+        avgEarningPerOrder: mockProfile.avgEarningPerOrder,
+        avgDailyIncome: mockProfile.avgDailyIncome,
+        acceptanceRate: mockProfile.acceptanceRate,
+        completionRate: mockProfile.completionRate,
+        rating: mockProfile.rating
+      },
+      userDetails: {
+        fullName: user.fullName,
+        accountLevel: "Pro" // hardcoded for the demo UI
+      }
+    }, { status: 200 });
+
+  } catch (error) {
+    console.error("User Mock Profile API Error:", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" }, 
+      { status: 500 }
+    );
+  }
+}
