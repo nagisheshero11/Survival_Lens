@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser } from '@/middleware/auth';
 import User, { COMPANY_CATEGORY_MAP } from '@/models/User';
+import Wallet from '@/models/Wallet';
 import connectDB from '@/lib/db';
 
 export async function GET(request: NextRequest) {
@@ -120,8 +121,24 @@ export async function POST(request: NextRequest) {
     const hasVerifiedCompany = finalCompanies.some((c: any) => c.verified === true);
     let newStatus = existingKyc.status || 'not_started';
     
+    const finalKycState = { ...existingKyc };
+    for (const field of configScalarFields) {
+      if (updates[`kyc.${field}`] !== undefined) {
+        finalKycState[field] = updates[`kyc.${field}`];
+      }
+    }
+    
+    const isProfileComplete = configScalarFields.every(field => {
+      const val = finalKycState[field];
+      return val !== undefined && val !== null && val !== '';
+    });
+    
     if (hasVerifiedCompany) {
-      newStatus = 'pending';
+      if (isProfileComplete) {
+        newStatus = 'approved';
+      } else {
+        newStatus = 'pending';
+      }
     } else {
       newStatus = 'partial';
     }
@@ -136,6 +153,19 @@ export async function POST(request: NextRequest) {
     
     if (pushOperations.length > 0) {
       await User.updateOne({ _id: currentUser._id }, { $push: { 'kyc.companies': { $each: pushOperations } } });
+    }
+    
+    // Auto-create wallet if status is pending or approved
+    if (newStatus === 'pending' || newStatus === 'approved') {
+      try {
+        await Wallet.findOneAndUpdate(
+          { userId: currentUser._id },
+          { $setOnInsert: { userId: currentUser._id, balance: 300, transactions: [] } },
+          { upsert: true, new: true }
+        );
+      } catch (err: any) {
+        console.error("Failed to auto-create wallet:", err.message);
+      }
     }
     
     return NextResponse.json({ 
