@@ -167,9 +167,9 @@ export default function VotingScreen() {
   const [supported, setSupported] = useState<string[]>([]);
 
   const TABS: { key: Tab; label: string; badge?: string; badgeBg: string; badgeText: string }[] = [
-    { key: "support",   label: "Support",   badge: "12", badgeBg: "bg-slate-900", badgeText: "text-white" },
+    { key: "support", label: "Support", badge: "12", badgeBg: "bg-slate-900", badgeText: "text-white" },
     { key: "supported", label: "Supported", badge: "48", badgeBg: "bg-emerald-100", badgeText: "text-emerald-700" },
-    { key: "raised",    label: "Raised",    badgeBg: "", badgeText: "" },
+    { key: "raised", label: "Raised", badgeBg: "", badgeText: "" },
   ];
 
   return (
@@ -304,7 +304,7 @@ export default function VotingScreen() {
           onPress={() => setIsRaising(false)}
           className="flex-1 bg-slate-900/40 justify-end"
         >
-          <Pressable onPress={() => {}} className="bg-white rounded-t-[2rem] p-6 pb-10">
+          <Pressable onPress={() => { }} className="bg-white rounded-t-[2rem] p-6 pb-10">
             <View className="w-10 h-1 bg-slate-200 rounded-full self-center mb-5" />
             <View className="flex-row items-center justify-between mb-1">
               <Text className="text-xl font-extrabold text-slate-900">Raise Risk Ticket</Text>

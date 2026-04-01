@@ -135,16 +135,14 @@ export default function PlansScreen() {
                     <TouchableOpacity
                       key={loc}
                       onPress={() => setLocation(loc as Location)}
-                      className={`px-4 py-3 rounded-2xl border-2 ${
-                        location === loc
+                      className={`px-4 py-3 rounded-2xl border-2 ${location === loc
                           ? "border-blue-600 bg-blue-50"
                           : "border-slate-100 bg-white"
-                      }`}
+                        }`}
                     >
                       <Text
-                        className={`text-xs font-extrabold ${
-                          location === loc ? "text-blue-700" : "text-slate-500"
-                        }`}
+                        className={`text-xs font-extrabold ${location === loc ? "text-blue-700" : "text-slate-500"
+                          }`}
                       >
                         {loc}
                       </Text>
