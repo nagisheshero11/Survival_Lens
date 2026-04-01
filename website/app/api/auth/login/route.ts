@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     const token = generateToken(user._id, user.email);
 
     // 7. Return response
-    return NextResponse.json({
+    const response = NextResponse.json({
       token,
       user: {
         id: user._id,
@@ -56,6 +56,17 @@ export async function POST(request: NextRequest) {
         email: user.email
       }
     }, { status: 200 });
+
+    response.cookies.set({
+      name: 'token',
+      value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/'
+    });
+
+    return response;
 
   } catch (error) {
     console.error('Login Error:', error);

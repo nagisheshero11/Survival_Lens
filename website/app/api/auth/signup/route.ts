@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     const token = generateToken(savedUser._id, safeEmail);
 
     // 9. Response Format
-    return NextResponse.json({
+    const response = NextResponse.json({
       token,
       user: {
         id: savedUser._id,
@@ -63,6 +63,17 @@ export async function POST(request: NextRequest) {
         email: savedUser.email
       }
     }, { status: 201 });
+
+    response.cookies.set({
+      name: 'token',
+      value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/'
+    });
+
+    return response;
 
   } catch (error: any) {
     console.error('Signup Error:', error);
