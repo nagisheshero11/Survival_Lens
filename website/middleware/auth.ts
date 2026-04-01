@@ -11,13 +11,18 @@ export interface AuthResult {
 
 export const authenticateUser = async (request: NextRequest): Promise<AuthResult> => {
   try {
-    const authHeader = request.headers.get('authorization');
+    let token = request.cookies.get('token')?.value;
+
+    if (!token) {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+      }
+    }
     
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       return { error: 'Unauthorized: No token provided', status: 401 };
     }
-
-    const token = authHeader.split(' ')[1];
 
     if (!process.env.JWT_SECRET) {
       throw new Error('JWT_SECRET is undefined');
