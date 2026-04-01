@@ -76,16 +76,7 @@ export default function KycProcessPage() {
 
   if (!isMounted) return null;
 
-  // Lockdown guard: if it's already verified, they shouldn't be here
-  if (kycData.status === "approved" || kycData.status === "pending") {
-    return (
-       <div className="flex flex-col items-center justify-center p-20 min-h-full">
-         <h2 className="text-2xl font-black text-slate-900 mb-4">KYC Already Submitted</h2>
-         <p className="text-slate-500 mb-6 font-medium text-center">Your payload is currently under review by our agents.</p>
-         <button onClick={() => router.push("/dashboard/profile")} className="text-white hover:bg-blue-700 bg-blue-600 px-6 py-3 rounded-xl font-bold transition-all shadow-md">Return to Profile Dashboard</button>
-       </div>
-    );
-  }
+
 
 
   return (
