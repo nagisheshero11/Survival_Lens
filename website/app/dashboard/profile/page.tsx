@@ -13,16 +13,9 @@ import {
   BadgeCheck,
   Mail,
   Smartphone,
-  ShieldHalf,
-  Briefcase
+  ShieldHalf
 } from "lucide-react";
-
-const PARTNER_CATEGORIES: Record<string, string[]> = {
-  "Food Delivery": ["Zomato", "Swiggy", "EatSure"],
-  "Quick Commerce": ["Blinkit", "Zepto", "Instamart", "BigBasket"],
-  "Ride Hailing": ["Uber", "Ola", "Rapido", "inDrive", "Namma Yatri"],
-  "E-Commerce": ["Amazon Flex", "Flipkart", "Shadowfax", "Delhivery", "Porter"]
-};
+import { getKycData, calculateKycCompletion } from "../../../(services)/kyc";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -30,60 +23,74 @@ export default function ProfilePage() {
 
   // ── USER PROFILE STATE ──
   const [profile, setProfile] = useState({
-    fullName: "Marcus Sterling",
-    mobile: "+91 9876543210",
-    mobileVerified: true,
-    email: "marcus.s@example.com",
+    fullName: "",
+    mobile: "",
+    mobileVerified: false,
+    email: "",
     emailVerified: false,
-    address: "Block B, Tech Park Road, Urban District, 560001",
-    selectedPartners: ["Uber", "Zomato"] as string[]
+    address: ""
   });
 
-  const [activeCategory, setActiveCategory] = useState<string>("Ride Hailing");
+  // ── KYC API FETCH ──
+  const [completionProps, setCompletionProps] = useState({ percentage: 0, filledFields: 0, totalFields: 11 });
 
-  // ── KYC STATE ──
-  const [kycData, setKycData] = useState({
-    aadhaar: "", pan: "", photo: "", location: "",
-    age: "", company: "", partnerId: "", dashboardScreenshot: "",
-    avgWeeklyIncome: "", avgWorkingHours: "", status: "not_started"
-  });
-
-  // Load from local storage on mount
+  // Dynamically resolve mapped parameters strictly bypassing legacy crashing instances natively
   useEffect(() => {
-    const saved = localStorage.getItem("survivalLensKyc");
-    if (saved) {
-      setKycData(JSON.parse(saved));
-    }
-    setIsMounted(true);
-  }, []);
+    const loadProfileData = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        
+        // Fetch User Identity Authenticity 
+        const meRes = await fetch("/api/auth/me", {
+          method: "GET",
+          headers: token ? { "Authorization": `Bearer ${token}` } : {},
+          credentials: "include"
+        });
+        
+        if (meRes.ok) {
+          const authData = await meRes.json();
+          if (authData.user) {
+            setProfile(prev => ({
+               ...prev,
+               fullName: authData.user.fullName || "",
+               email: authData.user.email || "",
+               mobile: authData.user.mobile || "",
+               emailVerified: Boolean(authData.user.email),
+               mobileVerified: Boolean(authData.user.mobile)
+            }));
+          }
+        }
 
-  // Calculate KYC Completion Percentage
-  const completionProps = useMemo(() => {
-    const fields = [
-      kycData.aadhaar, kycData.pan, kycData.photo, kycData.location,
-      kycData.age, kycData.company, kycData.partnerId, kycData.dashboardScreenshot,
-      kycData.avgWeeklyIncome, kycData.avgWorkingHours
-    ];
-    
-    const filledFields = fields.filter(f => f.trim() !== "").length;
-    const totalFields = fields.length;
-    const percentage = Math.round((filledFields / totalFields) * 100);
-
-    return { percentage, filledFields, totalFields };
-  }, [kycData]);
-
-  const togglePartner = (partner: string) => {
-    setProfile(prev => {
-      const isSelected = prev.selectedPartners.includes(partner);
-      if (isSelected) {
-        if (prev.selectedPartners.length <= 1) return prev; // min 1
-        return { ...prev, selectedPartners: prev.selectedPartners.filter(p => p !== partner) };
-      } else {
-        if (prev.selectedPartners.length >= 4) return prev; // max 4
-        return { ...prev, selectedPartners: [...prev.selectedPartners, partner] };
+        // Fetch KYC Dependencies securely
+        let kycDataResponse = await getKycData();
+        if (!kycDataResponse) {
+          const saved = localStorage.getItem("survivalLensKyc");
+          if (saved) {
+             try { kycDataResponse = JSON.parse(saved); } catch (e) {}
+          }
+        }
+        
+        if (kycDataResponse) {
+           if (kycDataResponse.city && profile.address === "") {
+              setProfile(prev => ({ ...prev, address: kycDataResponse.city }));
+           }
+           setCompletionProps(calculateKycCompletion(kycDataResponse, kycDataResponse.companies || []));
+        }
+      } catch (e) {
+        // Fallback
+        const saved = localStorage.getItem("survivalLensKyc");
+        if (saved) {
+           try {
+             const data = JSON.parse(saved);
+             setCompletionProps(calculateKycCompletion(data, data.companies || []));
+           } catch (_err) {}
+        }
       }
-    });
-  };
+      setIsMounted(true);
+    };
+    
+    loadProfileData();
+  }, [profile.address]);
 
   if (!isMounted) return null;
 
@@ -243,73 +250,6 @@ export default function ProfilePage() {
           {/* Delivery Partners & Setup */}
           <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-8 lg:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex-1 min-h-[500px]">
              
-             {/* Section 1: Partnerships */}
-             <div className="mb-10">
-                <div className="flex items-center justify-between mb-8">
-                   <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100/50">
-                         <Briefcase size={20} className="" strokeWidth={2.5} />
-                      </div>
-                      <div>
-                         <h2 className="text-xl font-black text-slate-900 tracking-tight">Gig Affiliations</h2>
-                         <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Minimum 1, Maximum 4</p>
-                      </div>
-                   </div>
-                   <span className={`text-[11px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-md border ${profile.selectedPartners.length === 4 ? "bg-amber-50 border-amber-200 text-amber-600" : "bg-indigo-50 border-indigo-100/50 text-indigo-600"}`}>
-                     {profile.selectedPartners.length} / 4 Selected
-                   </span>
-                </div>
-
-                {/* Category Toggles */}
-                 <div className="flex overflow-x-auto gap-2 mb-6 pb-2 scrollbar-none">
-                   {Object.keys(PARTNER_CATEGORIES).map(category => (
-                     <button
-                        key={category}
-                        onClick={() => setActiveCategory(category)}
-                        className={`whitespace-nowrap px-4 py-2.5 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all ${
-                          activeCategory === category 
-                            ? "bg-slate-900 text-white shadow-md border border-slate-900" 
-                            : "bg-white text-slate-500 border border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                        }`}
-                     >
-                       {category}
-                     </button>
-                   ))}
-                 </div>
-
-                {/* Grid for Active Category */}
-                <div className="min-h-[120px]">
-                   <AnimatePresence mode="wait">
-                      <motion.div 
-                         key={activeCategory}
-                         initial={{ opacity: 0, y: 5 }}
-                         animate={{ opacity: 1, y: 0 }}
-                         exit={{ opacity: 0, y: -5 }}
-                         transition={{ duration: 0.2 }}
-                         className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
-                      >
-                         {PARTNER_CATEGORIES[activeCategory].map(partner => {
-                            const isSelected = profile.selectedPartners.includes(partner);
-                            return (
-                              <button 
-                                 key={partner}
-                                 onClick={() => togglePartner(partner)}
-                                 className={`p-4 rounded-xl border-2 text-[14px] font-black transition-all ${
-                                   isSelected 
-                                    ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm" 
-                                    : "border-slate-100 bg-white text-slate-500 hover:border-indigo-200 hover:bg-slate-50 cursor-pointer"
-                                 }`}
-                              >
-                                 {partner}
-                                 {isSelected && <BadgeCheck size={16} className="inline-block ml-2 text-indigo-600" />}
-                              </button>
-                            )
-                         })}
-                      </motion.div>
-                   </AnimatePresence>
-                </div>
-             </div>
-
              {/* Section 2: Address */}
              <div className="mb-10 pt-8 border-t border-slate-100">
                <label className="block text-[11px] font-black text-slate-900 uppercase tracking-widest mb-3 flex items-center gap-2">

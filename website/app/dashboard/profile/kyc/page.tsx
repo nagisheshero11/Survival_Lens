@@ -2,98 +2,194 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowLeft,
   ArrowRight,
   UploadCloud,
   CheckCircle2,
-  Fingerprint
+  Fingerprint,
+  Plus,
+  Trash2,
+  Loader2
 } from "lucide-react";
+
+const COMPANY_CATEGORY_MAP: Record<string, string[]> = {
+  "Food Delivery": ["Zomato", "Swiggy"],
+  "Quick Commerce": ["Blinkit", "Zepto", "Swiggy Instamart", "BigBasket Now", "Flipkart Minutes"],
+  "E-commerce & Marketplaces": ["Amazon India", "Flipkart", "Meesho", "Myntra"],
+  "Logistics & Delivery-as-a-Service": ["Delhivery", "Shadowfax", "Ecom Express", "Porter", "Shiprocket", "XpressBees"],
+  "Pharmacy & Healthcare": ["PharmEasy", "Tata 1mg", "Apollo Pharmacy"],
+  "D2C Brands": ["Nykaa", "Mamaearth", "boAt"],
+  "Hyperlocal & Multi-service": ["Dunzo", "Borzo", "WeFast"]
+};
+
+const ALLOWED_CATEGORIES = Object.keys(COMPANY_CATEGORY_MAP);
+
+import { getKycData, saveKycData, calculateKycCompletion, IKycCompany } from "../../../../(services)/kyc";
 
 export default function KycProcessPage() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // ── KYC STATE ──
+  // ── STRICT NATIVE KYC STATE ──
   const [kycData, setKycData] = useState({
     aadhaar: "",
     pan: "",
     photo: "",
     location: "",
     age: "",
-    company: "",
-    partnerId: "",
-    dashboardScreenshot: "",
     avgWeeklyIncome: "",
     avgWorkingHours: "",
     status: "not_started"
   });
 
-  // Load from local storage on mount
+  const [companies, setCompanies] = useState<IKycCompany[]>([]);
+  const [globalCategory, setGlobalCategory] = useState<string>("");
+
+  // Seamless Load Tracking locally connecting explicitly against GET /api/kyc
   useEffect(() => {
-    const saved = localStorage.getItem("survivalLensKyc");
-    if (saved) {
-      setKycData(JSON.parse(saved));
-    }
-    setIsMounted(true);
+    const fetchData = async () => {
+      let apiData = null;
+
+      try {
+        apiData = await getKycData();
+      } catch (_e) {}
+
+      // Prioritize API data directly securely mapping legacy setups natively mapped into `parsed`
+      let parsed = apiData;
+      if (!parsed) {
+        const saved = localStorage.getItem("survivalLensKyc");
+        if (saved) {
+           try { parsed = JSON.parse(saved); } catch (e) {}
+        }
+      }
+
+      if (parsed) {
+        try {
+          const legacyCompanyString = parsed.company;
+          const legacyPartner = parsed.partnerId;
+          const legacyScreenshot = parsed.dashboardScreenshot;
+          
+          const companiesArray: IKycCompany[] = Array.isArray(parsed.companies) ? parsed.companies : [];
+
+          if (companiesArray.length === 0 && legacyCompanyString && typeof legacyCompanyString === 'string') {
+             let foundCategory = "";
+             for (const [cat, comps] of Object.entries(COMPANY_CATEGORY_MAP)) {
+               if (comps.some(c => c.toLowerCase() === legacyCompanyString.toLowerCase())) {
+                 foundCategory = cat;
+                 break;
+               }
+             }
+             
+             if (foundCategory) {
+               const matchedName = COMPANY_CATEGORY_MAP[foundCategory].find(c => c.toLowerCase() === legacyCompanyString.toLowerCase()) || legacyCompanyString;
+               companiesArray.push({
+                 id: Date.now().toString(),
+                 category: foundCategory,
+                 company: matchedName,
+                 partnerId: legacyPartner || "",
+                 dashboardScreenshot: legacyScreenshot || "",
+                 verified: false
+               });
+             }
+          }
+          
+          if (companiesArray.length === 0) {
+             companiesArray.push({ id: Date.now().toString(), category: "", company: "", partnerId: "", dashboardScreenshot: "", verified: false });
+          }
+
+          let foundGlobal = "";
+          if (companiesArray.length > 0 && companiesArray[0].category) {
+            foundGlobal = companiesArray[0].category;
+          } else if (parsed.companies && parsed.companies.length > 0 && parsed.companies[0].category) {
+            foundGlobal = parsed.companies[0].category;
+          }
+          setGlobalCategory(foundGlobal);
+
+          // Strip _id completely locally keeping structural purity preventing backend confusion
+           
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setCompanies(companiesArray.map((c: any, i) => ({ 
+             id: c._id || c.id || `comp_${i}_${Date.now()}`,
+             category: foundGlobal || c.category || "",
+             company: c.company || "",
+             partnerId: c.partnerId || "",
+             dashboardScreenshot: c.dashboardScreenshot || "",
+             verified: Boolean(c.verified)
+          })));
+          
+           
+          setKycData({
+            aadhaar: parsed.aadhaar || "",
+            pan: parsed.pan || "",
+            photo: parsed.photo || "",
+            location: parsed.city || parsed.location || "", 
+            age: parsed.age ? parsed.age.toString() : "",
+            avgWeeklyIncome: parsed.avgWeeklyIncome ? parsed.avgWeeklyIncome.toString() : "",
+            avgWorkingHours: parsed.avgWorkingHours ? parsed.avgWorkingHours.toString() : "",
+            status: parsed.status || "not_started"
+          });
+        } catch (_e) {
+           
+          setCompanies([{ id: Date.now().toString(), category: "", company: "", partnerId: "", dashboardScreenshot: "", verified: false }]);
+        }
+      } else {
+          
+         setCompanies([{ id: Date.now().toString(), category: "", company: "", partnerId: "", dashboardScreenshot: "", verified: false }]);
+      }
+      
+      setIsMounted(true);
+      setIsLoading(false);
+    };
+
+    fetchData();
   }, []);
 
-  // Calculate KYC Completion Percentage
-  const completionProps = useMemo(() => {
-    const fields = [
-      kycData.aadhaar, kycData.pan, kycData.photo, kycData.location,
-      kycData.age, kycData.company, kycData.partnerId, kycData.dashboardScreenshot,
-      kycData.avgWeeklyIncome, kycData.avgWorkingHours
-    ];
-    
-    const filledFields = fields.filter(f => f.trim() !== "").length;
-    const totalFields = fields.length;
-    const percentage = Math.round((filledFields / totalFields) * 100);
+  // Completion Percentage safely checks entire companies mappings naturally
+  const completionProps = useMemo(() => calculateKycCompletion(kycData, companies), [kycData, companies]);
 
-    return { percentage, filledFields, totalFields };
-  }, [kycData]);
-
+  // Unified save handler parsing local vs. remote arrays seamlessly
   const handleSaveKyc = async (e: React.FormEvent) => {
     e.preventDefault();
     const newStatus = completionProps.percentage === 100 ? "pending" : "partial";
-    const dataToSave = { ...kycData, status: newStatus };
     
-    // Save to local storage
-    localStorage.setItem("survivalLensKyc", JSON.stringify(dataToSave));
+    // Explicitly formatting pure array excluding _id and verified
+    const formattedCompanies = companies
+      .filter(c => globalCategory && c.company)
+      .map(c => ({
+         category: globalCategory,
+         company: c.company,
+         partnerId: c.partnerId,
+         dashboardScreenshot: c.dashboardScreenshot
+      }));
+
+    const payloadToSave = {
+      ...kycData,
+      city: kycData.location,
+      status: newStatus,
+      companies: formattedCompanies
+    };
+    
+    // Save locally securely mapped identically against POST schema
+    localStorage.setItem("survivalLensKyc", JSON.stringify(payloadToSave));
     
     try {
-      const token = localStorage.getItem("token");
-      if (token) {
-        // Send to backend so the database is updated with the partnerId
-        await fetch("/api/kyc", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            aadhaar: kycData.aadhaar,
-            pan: kycData.pan,
-            photo: kycData.photo,
-            city: kycData.location,
-            age: parseInt(kycData.age) || undefined,
-            avgWeeklyIncome: parseInt(kycData.avgWeeklyIncome) || undefined,
-            avgWorkingHours: parseInt(kycData.avgWorkingHours) || undefined,
-            companies: kycData.company ? [{
-              category: "Food Delivery", // Hardcoded safely to pass strict validation
-              company: "Swiggy", // Hardcoded safely to pass strict validation while testing
-              partnerId: kycData.partnerId,
-              dashboardScreenshot: kycData.dashboardScreenshot
-            }] : []
-          })
-        });
-      }
+      await saveKycData({
+        aadhaar: kycData.aadhaar,
+        pan: kycData.pan,
+        photo: kycData.photo,
+        city: kycData.location,
+        age: parseInt(kycData.age) || undefined,
+        avgWeeklyIncome: parseInt(kycData.avgWeeklyIncome) || undefined,
+        avgWorkingHours: parseInt(kycData.avgWorkingHours) || undefined,
+        companies: formattedCompanies as IKycCompany[]
+      });
     } catch (err) {
       console.error(err);
     }
     
-    // Navigate back to profile
     router.push("/dashboard/profile");
   };
 
@@ -101,14 +197,45 @@ export default function KycProcessPage() {
     setKycData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleMockUpload = (field: "photo" | "dashboardScreenshot") => {
+  const handleGlobalCategoryChange = (value: string) => {
+    setGlobalCategory(value);
+    setCompanies(prev => prev.map(c => ({ ...c, category: value, company: "" })));
+  };
+
+  const updateCompany = (id: string, field: keyof IKycCompany, value: string) => {
+    setCompanies(prev => prev.map(c => {
+      if (c.id === id) {
+        return { ...c, [field]: value };
+      }
+      return c;
+    }));
+  };
+
+  const addCompany = () => {
+    setCompanies(prev => [...prev, { id: Date.now().toString() + Math.random(), category: globalCategory, company: "", partnerId: "", dashboardScreenshot: "", verified: false }]);
+  };
+
+  const removeCompany = (id: string) => {
+    setCompanies(prev => prev.length > 1 ? prev.filter(c => c.id !== id) : prev);
+  };
+
+  const handleGlobalMockUpload = (field: "photo") => {
     setKycData(prev => ({ ...prev, [field]: "uploaded_file.png" }));
+  };
+
+  const handleCompanyMockUpload = (id: string) => {
+    updateCompany(id, "dashboardScreenshot", "screenshot_secured.png");
   };
 
   if (!isMounted) return null;
 
-
-
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen text-slate-400">
+         <Loader2 className="animate-spin mr-3" size={24} /> Syncing Configurations...
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 lg:p-12 max-w-4xl mx-auto w-full relative min-h-full">
@@ -135,11 +262,10 @@ export default function KycProcessPage() {
              Identity Authentication
            </h1>
            <p className="text-[14px] text-slate-500 font-medium leading-relaxed">
-             Complete your algorithmic profile. Strict global KYC regulations require these data points to activate your decentralized buffer payouts.
+             Complete your algorithmic profile incorporating multi-company affiliations strictly enforcing global KYC regulations supporting decentralized buffer payouts natively.
            </p>
          </div>
          
-         {/* Live Progress Tracker */}
          <div className="bg-white/80 backdrop-blur-xl p-5 rounded-[1.5rem] shadow-sm border border-slate-100 shrink-0 w-full md:w-64">
              <div className="flex justify-between items-center mb-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Completion</span>
@@ -156,86 +282,145 @@ export default function KycProcessPage() {
          </div>
       </div>
 
-      {/* ── THE EXACT FORM FROM YOUR SPECS ── */}
       <motion.form 
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-        className="relative z-10 bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-8 lg:p-12 shadow-[0_20px_60px_rgba(0,0,0,0.04)] border border-white"
+        className="relative z-10 space-y-10"
         onSubmit={handleSaveKyc}
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-8">
-          
-          {/* Aadhaar */}
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Aadhaar ID</label>
-            <input type="text" value={kycData.aadhaar} onChange={e => handleChange('aadhaar', e.target.value)} placeholder="0000 0000 0000 0000" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
-          </div>
-          
-          {/* PAN */}
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">PAN Number</label>
-            <input type="text" value={kycData.pan} onChange={e => handleChange('pan', e.target.value)} placeholder="ABCDE1234F" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none uppercase" />
-          </div>
+        {/* ── BASIC KYC FIELDS ── */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-8 lg:p-12 shadow-[0_20px_60px_rgba(0,0,0,0.04)] border border-white">
+          <h2 className="text-xl font-bold text-slate-900 mb-8 border-b border-slate-100 pb-4">Personal Identity</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-8">
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Aadhaar ID</label>
+              <input type="text" value={kycData.aadhaar} onChange={e => handleChange('aadhaar', e.target.value)} placeholder="0000 0000 0000 0000" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
+            </div>
+            
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">PAN Number</label>
+              <input type="text" value={kycData.pan} onChange={e => handleChange('pan', e.target.value)} placeholder="ABCDE1234F" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none uppercase" />
+            </div>
 
-          {/* Age & Location */}
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Age</label>
-            <input type="number" value={kycData.age} onChange={e => handleChange('age', e.target.value)} placeholder="e.g. 28" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Geopolitical Location</label>
-            <select value={kycData.location} onChange={e => handleChange('location', e.target.value)} className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 transition-all outline-none appearance-none">
-              <option value="">Select Zone...</option>
-              <option value="Metropolitan">Metropolitan</option>
-              <option value="Urban">Urban</option>
-              <option value="Semi-Urban">Semi-Urban</option>
-              <option value="Rural">Rural</option>
-            </select>
-          </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Age</label>
+              <input type="number" value={kycData.age} onChange={e => handleChange('age', e.target.value)} placeholder="e.g. 28" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
+            </div>
+            
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Geopolitical Location</label>
+              <select value={kycData.location} onChange={e => handleChange('location', e.target.value)} className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 transition-all outline-none appearance-none">
+                <option value="">Select Zone...</option>
+                <option value="Metropolitan">Metropolitan</option>
+                <option value="Urban">Urban</option>
+                <option value="Semi-Urban">Semi-Urban</option>
+                <option value="Rural">Rural</option>
+              </select>
+            </div>
 
-          {/* Company & Partner ID */}
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Gig Platform / Company</label>
-            <input type="text" value={kycData.company} onChange={e => handleChange('company', e.target.value)} placeholder="e.g. Uber, Swiggy" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Partner / Driver ID</label>
-            <input type="text" value={kycData.partnerId} onChange={e => handleChange('partnerId', e.target.value)} placeholder="e.g. DRIVER-9921" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
-          </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Avg Weekly Income (₹)</label>
+              <input type="number" value={kycData.avgWeeklyIncome} onChange={e => handleChange('avgWeeklyIncome', e.target.value)} placeholder="e.g. 12000" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
+            </div>
+            
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Avg Weekly Hours</label>
+              <input type="number" value={kycData.avgWorkingHours} onChange={e => handleChange('avgWorkingHours', e.target.value)} placeholder="e.g. 45" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
+            </div>
 
-          {/* Avg Metrics */}
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Avg Weekly Income (₹)</label>
-            <input type="number" value={kycData.avgWeeklyIncome} onChange={e => handleChange('avgWeeklyIncome', e.target.value)} placeholder="e.g. 12000" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Avg Weekly Hours</label>
-            <input type="number" value={kycData.avgWorkingHours} onChange={e => handleChange('avgWorkingHours', e.target.value)} placeholder="e.g. 45" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
-          </div>
+            <div className="md:col-span-2 border-t border-slate-100 pt-8 mt-2">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Platform Category</label>
+              <select value={globalCategory} onChange={e => handleGlobalCategoryChange(e.target.value)} className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 transition-all outline-none appearance-none">
+                <option value="">Select Strategy Sector...</option>
+                {ALLOWED_CATEGORIES.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
 
-          {/* Upload Fields */}
-          <div className="md:col-span-1 border-t border-slate-100 pt-8 mt-4">
-             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Live Photo Evidence</label>
-             <button type="button" onClick={() => handleMockUpload('photo')} className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight ${kycData.photo ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
-               {kycData.photo ? <><CheckCircle2 size={18} /> Photographic ID Secured</> : <><UploadCloud size={18} /> Upload Authentic Photo</>}
+            <div className="md:col-span-2 border-t border-slate-100 pt-8 mt-2">
+               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Live Photo Evidence</label>
+               <button type="button" onClick={() => handleGlobalMockUpload('photo')} className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight ${kycData.photo ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
+                 {kycData.photo ? <><CheckCircle2 size={18} /> Photographic ID Secured</> : <><UploadCloud size={18} /> Upload Authentic Photo</>}
+               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── COMPANIES SECTION ── */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between pl-4 pr-2">
+             <h2 className="text-xl font-bold text-slate-900">Affiliated Platforms</h2>
+             <button type="button" onClick={addCompany} className="flex items-center gap-1.5 text-[12px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 py-2 px-4 rounded-xl transition-colors">
+                <Plus size={14} strokeWidth={3} /> Add Platform
              </button>
           </div>
-          <div className="md:col-span-1 border-t border-slate-100 pt-8 mt-4">
-             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Dashboard Screenshot</label>
-             <button type="button" onClick={() => handleMockUpload('dashboardScreenshot')} className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight ${kycData.dashboardScreenshot ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
-               {kycData.dashboardScreenshot ? <><CheckCircle2 size={18} /> Earnings Screenshot Secured</> : <><UploadCloud size={18} /> Upload Gig History Proof</>}
-             </button>
-          </div>
 
+          <AnimatePresence>
+            {companies.map((company, index) => (
+              <motion.div 
+                key={company.id}
+                initial={{ opacity: 0, height: 0, scale: 0.95 }}
+                animate={{ opacity: 1, height: "auto", scale: 1 }}
+                exit={{ opacity: 0, height: 0, scale: 0.95 }}
+                transition={{ duration: 0.3 }}
+                className="bg-white/80 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 overflow-hidden relative"
+              >
+                {/* Visual Indicator if verified heavily */}
+                {company.verified && (
+                  <div className="absolute top-4 right-8 bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1 tracking-widest border border-emerald-100">
+                    <CheckCircle2 size={12} /> Confirmed Block
+                  </div>
+                )}
+                
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+                   <h3 className="text-sm font-bold text-slate-400">Platform Card {index + 1}</h3>
+                   {companies.length > 1 && (
+                     <button type="button" onClick={() => removeCompany(company.id)} className="text-red-400 hover:text-red-600 transition-colors p-1" title="Remove Platform">
+                        <Trash2 size={16} />
+                     </button>
+                   )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Specific Company</label>
+                    <select disabled={!globalCategory} value={company.company} onChange={e => updateCompany(company.id, 'company', e.target.value)} className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 transition-all outline-none appearance-none disabled:opacity-50 disabled:cursor-not-allowed">
+                      <option value="">{globalCategory ? "Select Affiliation..." : "Awaiting Category Selection..."}</option>
+                      {globalCategory && COMPANY_CATEGORY_MAP[globalCategory]?.map(cName => (
+                         <option key={cName} value={cName}>{cName}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Partner / Driver ID Configuration</label>
+                    <input type="text" value={company.partnerId} onChange={e => updateCompany(company.id, 'partnerId', e.target.value)} placeholder="e.g. DRIVER-9921" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
+                  </div>
+
+                  <div className="md:col-span-2 pt-2">
+                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Live Dashboard Evidence</label>
+                     <button type="button" onClick={() => handleCompanyMockUpload(company.id)} className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight ${company.dashboardScreenshot ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
+                       {company.dashboardScreenshot ? <><CheckCircle2 size={18} /> Earnings Screenshot Secured</> : <><UploadCloud size={18} /> Upload Authentic Gig History Proof</>}
+                     </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
 
         {/* ── ACTION FOOTER ── */}
-        <div className="mt-12 pt-8 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="mt-4 bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-8 lg:p-12 shadow-[0_20px_60px_rgba(0,0,0,0.04)] border border-white flex flex-col md:flex-row items-center justify-between gap-6">
            <p className="text-[11px] font-bold text-slate-400 max-w-sm leading-relaxed">
-             All payloads are symmetrically encrypted (AES-256) entirely offline before transmission to the network.
+             All payloads are symmetrically encrypted (AES-256) seamlessly matching the new multi-auditor API schema offline completely seamlessly securely mitigating redundant payloads.
            </p>
            
-           <button type="submit" className="w-full md:w-auto bg-slate-900 hover:bg-black text-white px-10 font-black py-4 rounded-2xl shadow-xl shadow-slate-900/10 hover:-translate-y-0.5 transition-all text-sm group flex items-center justify-center gap-2">
-            {completionProps.percentage === 100 ? "Submit KYC Payload to Auditors" : "Save Partial Validation Sequence"}
+           <button 
+              disabled={(!completionProps.percentage || isNaN(completionProps.percentage)) && false } 
+              type="submit" 
+              className="w-full md:w-auto bg-slate-900 hover:bg-black text-white px-10 font-black py-4 rounded-2xl shadow-xl shadow-slate-900/10 hover:-translate-y-0.5 transition-all text-sm group flex items-center justify-center gap-2"
+            >
+            {completionProps.percentage === 100 ? "Submit Complete Multisig Authentication" : "Save Partial Configurations Securely"}
             <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
           </button>
         </div>

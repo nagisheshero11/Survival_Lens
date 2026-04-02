@@ -36,6 +36,8 @@ const dailyActivitySchema = new Schema<IDailyActivity>({
   weather: { type: String }
 }, { timestamps: true });
 
+dailyActivitySchema.index({ userId: 1, date: -1 });
+
 export const getDailyActivityModel = async () => {
   const conn = await connectCompanyDB();
   return conn.models.DailyActivity || conn.model<IDailyActivity>('DailyActivity', dailyActivitySchema);
