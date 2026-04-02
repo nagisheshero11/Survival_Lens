@@ -48,6 +48,8 @@ const paymentSchema = new Schema<IPayment>({
   },
 });
 
+paymentSchema.index({ userId: 1, createdAt: -1 });
+
 const Payment: Model<IPayment> = models.Payment || model<IPayment>('Payment', paymentSchema);
 
 export default Payment;

@@ -1,35 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateAdmin } from '@/middleware/auth';
 import Claim from '@/models/Claim';
 import connectDB from '@/lib/db';
 
-const ADMIN_EMAILS = ['admin@survivallens.com'];
-
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await authenticateUser(request);
+    const authResult = await authenticateAdmin(request);
     if (authResult.error) {
       return NextResponse.json({ message: authResult.error }, { status: authResult.status || 401 });
-    }
-
-    const currentUser = authResult.user;
-    if (!currentUser) {
-      return NextResponse.json({ message: "User not found" }, { status: 404 });
-    }
-
-    // Basic admin check safely bypassing existing DB structures
-    if (!ADMIN_EMAILS.includes(currentUser.email)) {
-      return NextResponse.json({ message: "Unauthorized access: Admin only" }, { status: 403 });
     }
 
     let rawBody;
     try {
       rawBody = await request.json();
-    } catch (e) {
+    } catch (_e) {
       return NextResponse.json({ message: "Invalid JSON format" }, { status: 400 });
     }
 
-    const { claimId } = rawBody;
+    const { claimId } = rawBody; // `reason` purposefully unused to avoid Schema modifications unless explicitly requested
 
     if (!claimId) {
       return NextResponse.json({ message: "claimId is required" }, { status: 400 });
@@ -54,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ message: "Claim rejected" }, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Admin Claims Reject Error:', error);
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
