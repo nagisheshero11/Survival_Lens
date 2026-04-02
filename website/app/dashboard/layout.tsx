@@ -98,7 +98,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         {/* Bottom User Area */}
         <div className="p-4 mt-auto border-t border-slate-200/60 shrink-0 bg-slate-50/50">
           <Link
-            href="/auth/login"
+            href="/login"
             className="group flex items-center justify-between px-4 py-3.5 rounded-2xl text-slate-500 hover:text-slate-900 border border-transparent hover:border-slate-200 hover:bg-white hover:shadow-sm font-bold transition-all duration-200"
           >
             <div className="flex items-center gap-3.5">
