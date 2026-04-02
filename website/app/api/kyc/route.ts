@@ -16,7 +16,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ kyc: user.kyc }, { status: 200 });
+    const kycData = user.toObject ? user.toObject().kyc : user.kyc;
+    if (kycData && kycData.company !== undefined) {
+      delete kycData.company;
+    }
+
+    return NextResponse.json({ kyc: kycData }, { status: 200 });
   } catch (error: any) {
     return NextResponse.json({ message: 'Internal server error', error: error.message }, { status: 500 });
   }
@@ -39,6 +44,10 @@ export async function POST(request: NextRequest) {
       rawBody = await request.json();
     } catch (e) {
       return NextResponse.json({ message: "Invalid JSON format" }, { status: 400 });
+    }
+
+    if (rawBody.company !== undefined) {
+      return NextResponse.json({ message: "Legacy 'company' field is deprecated. Use 'companies' array natively." }, { status: 400 });
     }
     
     // Accept any subset of scalar KYC fields
