@@ -1,30 +1,88 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Vote,
   ShieldCheck,
   User,
-  HelpCircle,
   LogOut,
   Wallet,
+  FileText,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const NAV_ITEMS = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "Wallet", href: "/dashboard/wallet", icon: Wallet },
+  { name: "Claims", href: "/dashboard/claims", icon: FileText },
   { name: "Voting", href: "/dashboard/voting", icon: Vote },
   { name: "Coverage Plans", href: "/dashboard/plans", icon: ShieldCheck },
   { name: "Profile", href: "/dashboard/profile", icon: User },
-  { name: "Raise Ticket", href: "/dashboard/support", icon: HelpCircle },
 ];
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [displayName, setDisplayName] = useState("User");
+  const [displayEmail, setDisplayEmail] = useState("Signed in");
+  const [avatarUrl, setAvatarUrl] = useState("");
+
+  useEffect(() => {
+    const stored = localStorage.getItem("user");
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as { fullName?: string; email?: string; avatarUrl?: string };
+        if (parsed.fullName?.trim()) {
+          setDisplayName(parsed.fullName.trim());
+        }
+        if (parsed.email?.trim()) {
+          setDisplayEmail(parsed.email.trim());
+        }
+        if (parsed.avatarUrl?.trim()) {
+          setAvatarUrl(parsed.avatarUrl);
+        }
+      } catch {
+        // Ignore malformed local storage payloads.
+      }
+    }
+
+    const savedAvatar = localStorage.getItem("survivalLensAvatar");
+    if (savedAvatar) {
+      setAvatarUrl(savedAvatar);
+    }
+
+    const loadUserFromApi = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      try {
+        const res = await fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        if (data?.user?.fullName?.trim()) {
+          setDisplayName(data.user.fullName.trim());
+        }
+        if (data?.user?.email?.trim()) {
+          setDisplayEmail(data.user.email.trim());
+        }
+        if (data?.user?.kyc?.photo?.trim()) {
+          setAvatarUrl(data.user.kyc.photo);
+        }
+      } catch {
+        // Keep local fallback values if the API is unavailable.
+      }
+    };
+
+    loadUserFromApi();
+  }, []);
 
   // Determine active index based on route. Exact match for Overview, startsWith for others.
   const activeIndex = NAV_ITEMS.findIndex((item) => {
@@ -99,6 +157,21 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
         {/* Bottom User Area */}
         <div className="p-4 mt-auto border-t border-slate-200/60 shrink-0 bg-slate-50/50">
+          <div className="px-4 py-3 mb-2 rounded-2xl bg-white border border-slate-200/50 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center text-[11px] font-black text-slate-500 tracking-tight shrink-0">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="User avatar" className="w-full h-full object-contain bg-slate-100" />
+                ) : (
+                  displayName.split(" ").map(part => part[0]).join("").slice(0, 2).toUpperCase()
+                )}
+              </div>
+              <p className="text-[13px] font-black text-slate-900 truncate tracking-tight">{displayName}</p>
+            </div>
+            <p className="mt-1 truncate text-[10px] font-bold tracking-wide text-slate-400 lowercase">
+              {displayEmail.toLowerCase()}
+            </p>
+          </div>
           <Link
             href="/login"
             className="group flex items-center justify-between px-4 py-3.5 rounded-2xl text-slate-500 hover:text-slate-900 border border-transparent hover:border-slate-200 hover:bg-white hover:shadow-sm font-bold transition-all duration-200"
