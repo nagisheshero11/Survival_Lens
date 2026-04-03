@@ -16,6 +16,7 @@ import {
   ShieldHalf
 } from "lucide-react";
 import { getKycData, calculateKycCompletion } from "../../../(services)/kyc";
+import { getMe } from "../../../(services)/auth";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -41,14 +42,8 @@ export default function ProfilePage() {
         const token = localStorage.getItem("token");
         
         // Fetch User Identity Authenticity 
-        const meRes = await fetch("/api/auth/me", {
-          method: "GET",
-          headers: token ? { "Authorization": `Bearer ${token}` } : {},
-          credentials: "include"
-        });
-        
-        if (meRes.ok) {
-          const authData = await meRes.json();
+        try {
+          const authData = await getMe();
           if (authData.user) {
             setProfile(prev => ({
                ...prev,
@@ -59,6 +54,8 @@ export default function ProfilePage() {
                mobileVerified: Boolean(authData.user.mobile)
             }));
           }
+        } catch (authErr) {
+          console.error("Failed to load user profile:", authErr);
         }
 
         // Fetch KYC Dependencies securely

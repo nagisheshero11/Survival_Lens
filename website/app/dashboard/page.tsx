@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Bell, Wallet, ShieldCheck, ArrowRight, Activity, CloudRain, Flame, Construction, BadgeCheck, Loader2 } from "lucide-react";
+import { getMockProfile } from "@/(services)/user";
 
 export default function DashboardPage() {
   const [profileData, setProfileData] = useState<any>(null);
@@ -14,13 +15,8 @@ export default function DashboardPage() {
           setLoading(false);
           return;
         }
-        const res = await fetch('/api/user/mock-profile', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setProfileData(data);
-        }
+        const data = await getMockProfile();
+        setProfileData(data);
       } catch (err) {
         console.error(err);
       } finally {
