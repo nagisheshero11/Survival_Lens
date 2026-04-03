@@ -79,7 +79,10 @@ export default function PlansPage() {
     <div className="p-8 lg:p-12 max-w-7xl mx-auto w-full relative min-h-full">
       
       {/* ── BACKGROUND AMBIENCE ── */}
-      <div className="absolute top-[-10%] left-[20%] w-[600px] h-[600px] bg-blue-400/5 rounded-full blur-[140px] pointer-events-none z-0" />
+      <div 
+         className="absolute top-[-10%] left-[20%] bg-blue-400/5 rounded-full blur-[140px] pointer-events-none z-0 transition-opacity duration-1000" 
+         style={{ width: "clamp(24rem, 45vw, 37.5rem)", height: "clamp(24rem, 45vw, 37.5rem)" }}
+      />
 
       {/* ── DYNAMIC PAGE HEADER ── */}
       <div className="relative z-10 max-w-2xl mb-12">

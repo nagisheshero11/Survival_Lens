@@ -210,7 +210,10 @@ export default function VotingPage() {
 
   return (
     <div className="p-8 lg:p-12 max-w-7xl mx-auto w-full relative min-h-full">
-      <div className="absolute top-[-5%] left-[-10%] w-[500px] h-[500px] bg-blue-400/5 rounded-full blur-[140px] pointer-events-none z-0" />
+      <div 
+        className="absolute top-[-5%] left-[-10%] bg-blue-400/5 rounded-full blur-[140px] pointer-events-none z-0 transition-opacity duration-1000" 
+        style={{ width: "clamp(20rem, 40vw, 37.5rem)", height: "clamp(20rem, 40vw, 37.5rem)" }}
+      />
 
       <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
         <div>
