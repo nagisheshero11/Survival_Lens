@@ -144,6 +144,23 @@ export default function PlansPage() {
 
   if (!isMounted) return null;
 
+  let paymentInfo = { allowed: true, daysRemaining: 0, nextDate: null as Date | null };
+  if (subscription && subscription.lastPaymentDate) {
+    const lastDate = new Date(subscription.lastPaymentDate);
+    const currentDate = new Date();
+    const diffTime = currentDate.getTime() - lastDate.getTime();
+    const daysPassed = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    const nextDate = new Date(lastDate);
+    nextDate.setDate(nextDate.getDate() + 7);
+    
+    paymentInfo.nextDate = nextDate;
+    if (daysPassed < 7) {
+      paymentInfo.allowed = false;
+      paymentInfo.daysRemaining = 7 - daysPassed;
+    }
+  }
+
   return (
     <div className="p-8 lg:p-12 max-w-7xl mx-auto w-full relative min-h-full">
       <Toaster position="top-right" />
@@ -198,7 +215,7 @@ export default function PlansPage() {
                  </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-10">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100/60">
                     <div className="flex items-center gap-2 mb-2 text-slate-500">
                        <Calendar size={18} strokeWidth={2.5} />
@@ -206,6 +223,15 @@ export default function PlansPage() {
                     </div>
                     <p className="text-lg font-black text-slate-900 tracking-tight">
                        {subscription.lastPaymentDate ? new Date(subscription.lastPaymentDate).toLocaleDateString() : "Never"}
+                    </p>
+                 </div>
+                 <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100/60">
+                    <div className="flex items-center gap-2 mb-2 text-slate-500">
+                       <Calendar size={18} strokeWidth={2.5} />
+                       <span className="text-[11px] font-bold uppercase tracking-widest">Next Payment</span>
+                    </div>
+                    <p className="text-lg font-black text-slate-900 tracking-tight">
+                       {paymentInfo.nextDate ? paymentInfo.nextDate.toLocaleDateString() : "Now"}
                     </p>
                  </div>
                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100/60">
@@ -229,18 +255,18 @@ export default function PlansPage() {
                     <p className={`text-sm font-medium ${subscription.duePayments > 0 ? 'text-red-500/80' : 'text-emerald-600/80'}`}>
                        {subscription.duePayments > 0 
                          ? "You must clear your dues to ensure algorithmic protection continues." 
-                         : "Your coverage is fully active for the week."}
+                         : (!paymentInfo.allowed ? `Next payment available in ${paymentInfo.daysRemaining} days.` : "Your coverage is fully active for the week.")}
                     </p>
                  </div>
                  
                  <button 
                     onClick={handlePayWeekly}
-                    disabled={isProcessing}
+                    disabled={isProcessing || !paymentInfo.allowed}
                     className={`shrink-0 font-black tracking-tight py-3.5 px-8 rounded-xl transition-all shadow-sm flex items-center gap-2 outline-none
                        ${subscription.duePayments > 0 
                          ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-500/20' 
                          : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20'}
-                       ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5'}
+                       ${(isProcessing || !paymentInfo.allowed) ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5'}
                     `}
                  >
                     {isProcessing ? 'Processing...' : `Pay ₹${subscription.planAmount}`}

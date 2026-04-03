@@ -23,25 +23,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: "Subscription not found" }, { status: 404 });
     }
 
-    // Dynamic Due Payments Calculation
+    // Dynamic Due Payments Calculation (Weekly Logic)
     const now = new Date();
-    const referenceDate = subscription.lastPaymentDate || subscription.startDate;
-    const diffTime = Math.abs(now.getTime() - referenceDate.getTime());
-    const daysPassed = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const diffFromStart = now.getTime() - subscription.startDate.getTime();
+    const daysFromStart = Math.floor(diffFromStart / (1000 * 60 * 60 * 24));
+    const weeksPassed = Math.floor(daysFromStart / 7);
 
-    // If weekly cycle has passed
-    if (daysPassed > 7) {
-      const calculatedDues = Math.floor(daysPassed / 7);
-      
-      // Update DB with dynamically computed dues (this isn't additive, it's absolute based on time since last payment)
-      // Wait, if lastPaymentDate is set, then since that point, 7 days means 1 payment due.
-      // E.g., 8 days passed -> 1 due. 15 days passed -> 2 due.
-      // What if they had previous duePayments that were not zero?
-      // Since last payment resets duePayments to 0, it works correctly to just set it to floor(daysPassed/7).
-      if (subscription.duePayments !== calculatedDues) {
-        subscription.duePayments = calculatedDues;
-        await subscription.save();
-      }
+    // Compute due payments
+    let calculatedDues = weeksPassed - subscription.totalPayments;
+    if (calculatedDues < 0) {
+      calculatedDues = 0;
+    }
+
+    if (subscription.duePayments !== calculatedDues) {
+      subscription.duePayments = calculatedDues;
+      await subscription.save();
     }
 
     return NextResponse.json({
@@ -50,8 +46,8 @@ export async function GET(request: NextRequest) {
       totalPayments: subscription.totalPayments,
       duePayments: subscription.duePayments,
       status: subscription.status,
-      lastPaymentDate: subscription.lastPaymentDate ? subscription.lastPaymentDate.toISOString().split('T')[0] : null,
-      startDate: subscription.startDate.toISOString().split('T')[0]
+      lastPaymentDate: subscription.lastPaymentDate ? subscription.lastPaymentDate.toISOString() : null,
+      startDate: subscription.startDate.toISOString()
     }, { status: 200 });
 
   } catch (error: any) {
