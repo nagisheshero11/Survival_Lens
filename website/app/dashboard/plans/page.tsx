@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   CheckCircle2, Info, Star, Cloud, Network, 
@@ -22,6 +23,7 @@ type SubscriptionData = {
 };
 
 export default function PlansPage() {
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [kycStatus, setKycStatus] = useState<string>("not_started");
   
@@ -97,6 +99,8 @@ export default function PlansPage() {
     }
   };
 
+  const isKycApproved = kycStatus === 'approved';
+
   if (!isMounted) return null;
 
   let paymentInfo = { allowed: true, daysRemaining: 0, nextDate: null as Date | null };
@@ -128,20 +132,22 @@ export default function PlansPage() {
 
       {/* ── HEADER TITLE ── */}
       <div className="relative z-10 max-w-2xl mb-12">
-        <div className="flex items-center gap-2.5 mb-3">
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100/50 flex items-center gap-1.5">
-            <ShieldCheck size={12} strokeWidth={3} />
-            {subscription ? "Active Coverage" : "Coverage Plans"}
-          </span>
+        <div className="max-w-2xl">
+          <div className="flex items-center gap-2.5 mb-3">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100/50 flex items-center gap-1.5">
+              <ShieldCheck size={12} strokeWidth={3} />
+              {subscription ? "Active Coverage" : "Coverage Plans"}
+            </span>
+          </div>
+          <h1 className="text-4xl lg:text-5xl font-black text-slate-900 tracking-tight leading-none mb-4">
+             {subscription ? "Your Subscription" : "Select Your Protocol"}
+          </h1>
+          <p className="text-[15px] text-slate-500 font-medium leading-relaxed max-w-xl">
+             {subscription 
+              ? "Manage your weekly premiums, check active dues, and ensure algorithmic protection remains seamless." 
+              : "Choose the automated environment protection buffer that matches your risk baseline and weekly earnings."}
+          </p>
         </div>
-        <h1 className="text-4xl lg:text-5xl font-black text-slate-900 tracking-tight leading-none mb-4">
-           {subscription ? "Your Subscription" : "Select Your Protocol"}
-        </h1>
-        <p className="text-[15px] text-slate-500 font-medium leading-relaxed max-w-xl">
-           {subscription 
-            ? "Manage your weekly premiums, check active dues, and ensure algorithmic protection remains seamless." 
-            : "Choose the automated environment protection buffer that matches your risk baseline and weekly earnings."}
-        </p>
       </div>
 
       {isLoading ? (
@@ -249,16 +255,24 @@ export default function PlansPage() {
             
             {/* KYC Warning Banner */}
              {kycStatus !== 'approved' && (
-               <div className="lg:col-span-3 bg-amber-50 border border-amber-200/60 rounded-2xl p-5 flex items-start gap-4 shadow-sm mb-2">
-                 <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                    <Lock size={20} />
+               <div className="lg:col-span-3 bg-amber-50 border border-amber-200/60 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm mb-2">
+                 <div className="flex items-start gap-4">
+                   <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                      <Lock size={20} />
+                   </div>
+                   <div>
+                      <h3 className="text-amber-800 font-black text-sm tracking-tight mb-1">Your KYC is not approved</h3>
+                      <p className="text-amber-700/80 text-xs font-medium max-w-3xl">
+                         You cannot select or activate a premium protection buffer until your identity and company affiliation have been verified by the Risk team. Please wait for approval or contact support.
+                      </p>
+                   </div>
                  </div>
-                 <div>
-                    <h3 className="text-amber-800 font-black text-sm tracking-tight mb-1">Your KYC is not approved</h3>
-                    <p className="text-amber-700/80 text-xs font-medium max-w-3xl">
-                       You cannot select or activate a premium protection buffer until your identity and company affiliation have been verified by the Risk team. Please wait for approval or contact support.
-                    </p>
-                 </div>
+                 <button
+                   onClick={() => router.push('/dashboard/profile/kyc')}
+                   className="shrink-0 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black tracking-tight transition-colors"
+                 >
+                   Complete KYC
+                 </button>
                </div>
              )}
 
@@ -291,11 +305,15 @@ export default function PlansPage() {
               </div>
               
               <button 
-                 onClick={() => handleSelectPlan(90)}
-                 disabled={kycStatus !== 'approved' || isProcessing}
-                 className="w-full bg-slate-50 hover:bg-slate-100 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-200/60 font-black tracking-tight py-4 rounded-2xl transition-all shadow-sm flex justify-center items-center gap-2"
+                  onClick={() => (isKycApproved ? handleSelectPlan(90) : router.push('/dashboard/profile/kyc'))}
+                  disabled={isProcessing}
+                  className={`w-full border font-black tracking-tight py-4 rounded-2xl transition-all shadow-sm flex justify-center items-center gap-2 ${
+                   isKycApproved
+                    ? 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200/60'
+                    : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200/70'
+                  } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                 {isProcessing ? 'Processing' : 'Select Basic'}
+                  {isProcessing ? 'Processing' : isKycApproved ? 'Select Basic' : 'Complete KYC to Unlock'}
               </button>
             </motion.div>
 
@@ -337,11 +355,15 @@ export default function PlansPage() {
               </div>
 
               <button 
-                onClick={() => handleSelectPlan(110)}
-                disabled={kycStatus !== 'approved' || isProcessing}
-                className="w-full bg-white hover:bg-slate-50 text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed font-black tracking-tight py-4 rounded-2xl shadow-xl transition-colors text-[14px] relative z-10 flex justify-center items-center gap-2 group"
+                onClick={() => (isKycApproved ? handleSelectPlan(110) : router.push('/dashboard/profile/kyc'))}
+                disabled={isProcessing}
+                className={`w-full font-black tracking-tight py-4 rounded-2xl shadow-xl transition-colors text-[14px] relative z-10 flex justify-center items-center gap-2 group ${
+                  isKycApproved
+                    ? 'bg-white hover:bg-slate-50 text-blue-600'
+                    : 'bg-amber-100 hover:bg-amber-50 text-amber-800 border border-amber-200/70'
+                } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                {isProcessing ? 'Processing' : 'Select Standard'}
+                {isProcessing ? 'Processing' : isKycApproved ? 'Select Standard' : 'Complete KYC to Unlock'}
               </button>
             </motion.div>
 
@@ -382,11 +404,15 @@ export default function PlansPage() {
               </div>
               
               <button 
-                onClick={() => handleSelectPlan(150)}
-                disabled={kycStatus !== 'approved' || isProcessing}
-                className="w-full mt-auto bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700/50 text-white font-black tracking-tight py-4 rounded-2xl shadow-lg transition-all relative z-10 text-[14px] flex justify-center items-center gap-2"
+                onClick={() => (isKycApproved ? handleSelectPlan(150) : router.push('/dashboard/profile/kyc'))}
+                disabled={isProcessing}
+                className={`w-full mt-auto border font-black tracking-tight py-4 rounded-2xl shadow-lg transition-all relative z-10 text-[14px] flex justify-center items-center gap-2 ${
+                  isKycApproved
+                    ? 'bg-slate-800 hover:bg-slate-700 border-slate-700/50 text-white'
+                    : 'bg-amber-50 hover:bg-amber-100 border-amber-200/70 text-amber-800'
+                } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                {isProcessing ? 'Processing' : 'Select Premium'}
+                {isProcessing ? 'Processing' : isKycApproved ? 'Select Premium' : 'Complete KYC to Unlock'}
               </button>
             </motion.div>
 

@@ -321,6 +321,7 @@ export default function DashboardPage() {
   const workingHoursLabel = trimmedWorkingHours ? `${trimmedWorkingHours} hrs/wk` : "Not set";
   const locationQuery = [mockProfile?.zone, mockProfile?.city].filter(Boolean).join(", ") || "India";
   const kycStatusLabel = completionProps.percentage >= 100 ? "KYC Verified" : `KYC ${completionProps.percentage}%`;
+  const isKycComplete = completionProps.percentage >= 100;
   const displayedLocation = currentCity.toLowerCase() === "india" ? "India" : `${currentCity}, India`;
   const mapSrc = gpsCoords
     ? `https://www.google.com/maps?q=${gpsCoords.lat},${gpsCoords.lng}&z=15&output=embed`
@@ -495,7 +496,13 @@ export default function DashboardPage() {
               <span className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-[9px] uppercase font-black tracking-[0.2em] flex items-center gap-1.5">
                  <Wallet size={12} strokeWidth={2.5}/> Guaranteed Floor
               </span>
-              <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-[0.15em] text-slate-300">Auto-Claim On</span>
+              <span className={`px-2.5 py-1 rounded-md border text-[9px] font-black uppercase tracking-[0.15em] ${
+                isKycComplete
+                  ? "bg-white/5 border-white/10 text-slate-300"
+                  : "bg-amber-500/10 border-amber-400/30 text-amber-300"
+              }`}>
+                {isKycComplete ? "Auto-Claim On" : "Wallet Locked"}
+              </span>
             </div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Available Buffer</p>
             <div className="flex items-end gap-3 mb-3">
@@ -504,6 +511,27 @@ export default function DashboardPage() {
                 <TrendingUp size={14} /> 12%
               </span>
             </div>
+
+            {!isKycComplete && (
+              <div className="mb-3 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-200">KYC Required</p>
+                  <p className="text-[11px] font-black text-amber-100">{completionProps.percentage}%</p>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-amber-300"
+                    style={{ width: `${completionProps.percentage}%` }}
+                  />
+                </div>
+                <button
+                  onClick={() => router.push("/dashboard/profile/kyc")}
+                  className="mt-3 w-full rounded-lg bg-amber-300 text-slate-900 text-[11px] font-black py-2 hover:bg-amber-200 transition-colors"
+                >
+                  {completionProps.percentage > 0 ? "Resume KYC to Unlock Wallet" : "Start KYC to Unlock Wallet"}
+                </button>
+              </div>
+            )}
 
             <div className="grid grid-cols-3 gap-2 mb-3">
               <div className="rounded-lg border border-white/10 bg-white/5 px-2 py-2">
@@ -534,10 +562,24 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex gap-3 relative z-10 w-full shrink-0">
-            <button className="flex-1 bg-white/10 hover:bg-white/15 text-white py-3.5 rounded-2xl font-black text-[13px] transition-colors border border-white/5 backdrop-blur-md">
+            <button
+              disabled={!isKycComplete}
+              className={`flex-1 py-3.5 rounded-2xl font-black text-[13px] transition-colors border backdrop-blur-md ${
+                isKycComplete
+                  ? "bg-white/10 hover:bg-white/15 text-white border-white/5"
+                  : "bg-white/5 text-slate-400 border-white/10 cursor-not-allowed"
+              }`}
+            >
               Withdraw
             </button>
-            <button className="flex-1 shrink-0 bg-emerald-500 hover:bg-emerald-400 text-slate-900 px-6 py-3.5 rounded-2xl font-black text-[13px] transition-colors shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+            <button
+              disabled={!isKycComplete}
+              className={`flex-1 shrink-0 px-6 py-3.5 rounded-2xl font-black text-[13px] transition-colors ${
+                isKycComplete
+                  ? "bg-emerald-500 hover:bg-emerald-400 text-slate-900 shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                  : "bg-emerald-900/40 text-emerald-200/40 cursor-not-allowed"
+              }`}
+            >
               Auto-Claim
             </button>
           </div>
