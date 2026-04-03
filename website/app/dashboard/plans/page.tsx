@@ -28,15 +28,33 @@ export default function PlansPage() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    // Read KYC from LocalStorage (or session management)
-    const savedKyc = localStorage.getItem("survivalLensKyc");
-    if (savedKyc) {
+    const initKyc = async () => {
+      // Fallback first (visual speed)
+      const savedKyc = localStorage.getItem("survivalLensKyc");
+      if (savedKyc) {
+        try {
+          const kycData = JSON.parse(savedKyc);
+          if (kycData.status) setKycStatus(kycData.status);
+        } catch (e) {}
+      }
+      
+      // Async proper validation
       try {
-        const kycData = JSON.parse(savedKyc);
-        if (kycData.status) setKycStatus(kycData.status);
-      } catch (e) {}
-    }
+        const token = localStorage.getItem("token");
+        const res = await fetch("/api/kyc", {
+          method: "GET",
+          headers: token ? { "Authorization": `Bearer ${token}` } : {},
+          credentials: "include"
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setKycStatus(data.kyc.status);
+          localStorage.setItem("survivalLensKyc", JSON.stringify(data.kyc));
+        }
+      } catch (err) {}
+    };
 
+    initKyc();
     fetchSubscription();
     setIsMounted(true);
   }, []);
@@ -44,7 +62,11 @@ export default function PlansPage() {
   const fetchSubscription = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch('/api/subscription');
+      const token = localStorage.getItem("token");
+      const res = await fetch('/api/subscription', {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
+        credentials: "include"
+      });
       if (res.ok) {
         const data = await res.json();
         setSubscription(data);
@@ -66,9 +88,14 @@ export default function PlansPage() {
     
     setIsProcessing(true);
     try {
+      const token = localStorage.getItem("token");
       const res = await fetch('/api/subscription/select', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        credentials: "include",
         body: JSON.stringify({ amount })
       });
       
@@ -90,9 +117,14 @@ export default function PlansPage() {
   const handlePayWeekly = async () => {
     setIsProcessing(true);
     try {
+      const token = localStorage.getItem("token");
       const res = await fetch('/api/subscription/pay', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        credentials: "include"
       });
       
       const data = await res.json();
