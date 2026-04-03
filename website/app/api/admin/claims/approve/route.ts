@@ -4,6 +4,8 @@ import Claim from '@/models/Claim';
 import connectDB from '@/lib/db';
 import jwt from 'jsonwebtoken';
 import { POST as walletCreditAPI } from '@/app/api/wallet/credit/route';
+import { logAdminTransaction } from '@/lib/adminWalletUtils';
+import User from '@/models/User';
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,6 +69,23 @@ export async function POST(request: NextRequest) {
     claim.updatedAt = new Date();
     
     await claim.save();
+
+    const user = await User.findById(claim.userId);
+
+    try {
+      if (user) {
+        await logAdminTransaction({
+          type: 'debit',
+          amount: claim.amount,
+          source: 'claim',
+          userId: claim.userId.toString(),
+          userName: user.fullName || 'Unknown',
+          referenceId: claim._id.toString()
+        });
+      }
+    } catch (adminErr) {
+      console.error('Failed to log admin debit transaction for claim:', adminErr);
+    }
 
     return NextResponse.json({ message: "Claim approved" }, { status: 200 });
 

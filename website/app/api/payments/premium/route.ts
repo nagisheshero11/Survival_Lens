@@ -3,6 +3,7 @@ import { authenticateUser } from '@/middleware/auth';
 import Wallet from '@/models/Wallet';
 import Payment from '@/models/Payment';
 import connectDB from '@/lib/db';
+import { logAdminTransaction } from '@/lib/adminWalletUtils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -75,6 +76,20 @@ export async function POST(request: NextRequest) {
       paymentRef,
       createdAt: new Date()
     });
+
+    try {
+      await logAdminTransaction({
+        type: 'credit',
+        amount,
+        source: 'premium',
+        userId: currentUser._id.toString(),
+        userName: currentUser.fullName || 'Unknown',
+        referenceId: paymentRef
+      });
+    } catch (adminErr) {
+      console.error('Failed to log admin premium transaction:', adminErr);
+      // We continue since the user side is successful, but ideally we'd halt or retry.
+    }
 
     return NextResponse.json({ 
       message: "Premium paid successfully", 
