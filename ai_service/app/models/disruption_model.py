@@ -1,21 +1,39 @@
-def detect_disruption(rain, temp, aqi):
-    score = 0
+def detect_geo_risk(rain: float, temp: float, windspeed: float) -> dict:
+    """
+    Computes a composite mathematical risk score isolating the likelihood
+    of geospatial disruption (accidents, route delays) for a gig worker.
+    """
+    risk_score = 0.0
+    
+    # Heavy Rain / Aquaplaning Risk
+    if rain > 3.0: 
+        risk_score += (rain * 0.15)
+        
+    # Lethal Wind Speeds (knocking over two-wheelers)
+    if windspeed > 35.0:
+        risk_score += 0.4
+        
+    # Extreme Heatstroke Matrix
+    if temp > 37.0:
+        risk_score += (temp - 37) * 0.12
+    elif temp < 5.0:
+        risk_score += (5 - temp) * 0.10
 
-    # Rain
-    if rain > 50:
-        score += 0.5
-
-    # Temperature
-    if temp > 40:
-        score += 0.3
-
-    # Pollution
-    if aqi > 300:
-        score += 0.4
-
-    if score >= 0.5:
-        return "HIGH_DISRUPTION"
-    elif score >= 0.3:
-        return "MODERATE_DISRUPTION"
+    # Normalize probability into a percentage scale (capped at 99%)
+    danger_probability = min(risk_score * 100, 99.0)
+    
+    if danger_probability > 65:
+        level = "CRITICAL"
+        action = "activate_buffer"
+    elif danger_probability > 25:
+        level = "WARNING"
+        action = "monitor_velocity"
     else:
-        return "NO_DISRUPTION"
+        level = "SAFE"
+        action = "none"
+
+    return {
+        "risk_level": level,
+        "action": action,
+        "safety_probability": round(100 - danger_probability, 1)
+    }

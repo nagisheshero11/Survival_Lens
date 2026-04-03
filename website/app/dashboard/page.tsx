@@ -1,30 +1,296 @@
 "use client";
-import { useState, useEffect } from "react";
-import { Bell, Wallet, ShieldCheck, ArrowRight, Activity, CloudRain, Flame, Construction, BadgeCheck, Loader2 } from "lucide-react";
-import { getMockProfile } from "@/(services)/user";
+import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  Bell,
+  Wallet,
+  ShieldCheck,
+  ArrowRight,
+  Activity,
+  CloudRain,
+  Flame,
+  Construction,
+  BadgeCheck,
+  Loader2,
+  ShieldAlert,
+  Fingerprint,
+  TrendingUp,
+  History as HistoryIcon,
+} from "lucide-react";
+import { motion } from "framer-motion";
 
 export default function DashboardPage() {
+  const toTrimmedString = (value: unknown) => {
+    if (typeof value === "string") return value.trim();
+    if (typeof value === "number") return String(value).trim();
+    return "";
+  };
+
+  const defaultKycData = {
+    aadhaar: "",
+    pan: "",
+    photo: "",
+    location: "",
+    age: "",
+    company: "",
+    partnerId: "",
+    dashboardScreenshot: "",
+    avgWeeklyIncome: "",
+    avgWorkingHours: "",
+  };
+
   const [profileData, setProfileData] = useState<any>(null);
+  const [localUserName, setLocalUserName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [liveLocationLabel, setLiveLocationLabel] = useState("");
+  const [currentCity, setCurrentCity] = useState("India");
+  const router = useRouter();
+  const [gpsStatus, setGpsStatus] = useState("Trying GPS...");
   const [loading, setLoading] = useState(true);
 
+  const [kycData, setKycData] = useState(defaultKycData);
+
   useEffect(() => {
+    let isUnmounted = false;
+    let gpsWatchId: number | null = null;
+    let gpsTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const savedKyc = localStorage.getItem("survivalLensKyc");
+    if (savedKyc) {
+      try {
+        const parsed = JSON.parse(savedKyc);
+        setKycData({ ...defaultKycData, ...(parsed || {}) });
+      } catch {}
+    }
+
+    const applyLivePosition = (position: GeolocationPosition) => {
+      if (isUnmounted) return;
+
+      const { latitude, longitude, accuracy } = position.coords;
+      const accuracyMeters = Math.round(accuracy || 0);
+
+      // Ignore extremely imprecise readings and keep profile fallback.
+      if (accuracyMeters > 1200) {
+        setGpsStatus("GPS weak, using profile location");
+        setGpsCoords(null);
+        setLiveLocationLabel("");
+        return false;
+      }
+
+      setGpsCoords({ lat: latitude, lng: longitude });
+      setLiveLocationLabel(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+      setGpsStatus(accuracyMeters > 0 ? `Live GPS (±${accuracyMeters}m)` : "Live GPS");
+      return true;
+    };
+
+    const setProfileFallback = (status: string) => {
+      if (isUnmounted) return;
+      setGpsCoords(null);
+      setLiveLocationLabel("");
+      setGpsStatus(status);
+    };
+
     const fetchMockProfile = async () => {
       try {
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+          try {
+            const parsed = JSON.parse(storedUser) as { fullName?: string; avatarUrl?: string };
+            if (parsed.fullName?.trim()) {
+              setLocalUserName(parsed.fullName.trim());
+            }
+            if (parsed.avatarUrl?.trim()) {
+              setAvatarUrl(parsed.avatarUrl);
+            }
+          } catch {
+            // Ignore malformed local storage payloads.
+          }
+        }
+
+        const savedAvatar = localStorage.getItem("survivalLensAvatar");
+        if (savedAvatar) {
+          setAvatarUrl(savedAvatar);
+        }
+
         const token = localStorage.getItem('token');
         if (!token) {
           setLoading(false);
           return;
         }
-        const data = await getMockProfile();
-        setProfileData(data);
+
+        const [res, meRes] = await Promise.all([
+          fetch('/api/user/mock-profile', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }),
+          fetch('/api/auth/me', {
+            headers: { 'Authorization': `Bearer ${token}` },
+            credentials: 'include'
+          })
+        ]);
+
+        if (res.ok) {
+          const data = await res.json();
+          setProfileData(data);
+        }
+
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          if (meData?.user?.fullName?.trim()) {
+            setLocalUserName(meData.user.fullName.trim());
+          }
+          if (meData?.user?.kyc?.photo?.trim()) {
+            setAvatarUrl(meData.user.kyc.photo);
+          }
+        }
+
+        if (navigator.geolocation) {
+          let bestPosition: GeolocationPosition | null = null;
+
+          gpsWatchId = navigator.geolocation.watchPosition(
+            (position) => {
+              const currentAccuracy = position.coords.accuracy || Number.POSITIVE_INFINITY;
+              const bestAccuracy = bestPosition?.coords.accuracy || Number.POSITIVE_INFINITY;
+
+              if (!bestPosition || currentAccuracy < bestAccuracy) {
+                bestPosition = position;
+              }
+
+              // Accept quickly once we have strong GPS accuracy.
+              if (currentAccuracy <= 80) {
+                if (gpsWatchId !== null) {
+                  navigator.geolocation.clearWatch(gpsWatchId);
+                  gpsWatchId = null;
+                }
+                if (gpsTimeoutId) {
+                  clearTimeout(gpsTimeoutId);
+                  gpsTimeoutId = null;
+                }
+                applyLivePosition(position);
+              }
+            },
+            (error) => {
+              if (gpsWatchId !== null) {
+                navigator.geolocation.clearWatch(gpsWatchId);
+                gpsWatchId = null;
+              }
+              if (gpsTimeoutId) {
+                clearTimeout(gpsTimeoutId);
+                gpsTimeoutId = null;
+              }
+
+              if (error.code === error.PERMISSION_DENIED) {
+                setProfileFallback("GPS denied, using profile location");
+              } else if (error.code === error.TIMEOUT) {
+                setProfileFallback("GPS timeout, using profile location");
+              } else {
+                setProfileFallback("Using profile location");
+              }
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 15000,
+              maximumAge: 0,
+            }
+          );
+
+          // Give GPS a short calibration window, then use the best captured reading.
+          gpsTimeoutId = setTimeout(() => {
+            if (gpsWatchId !== null) {
+              navigator.geolocation.clearWatch(gpsWatchId);
+              gpsWatchId = null;
+            }
+
+            if (bestPosition) {
+              const applied = applyLivePosition(bestPosition);
+              if (!applied) {
+                setProfileFallback("GPS weak, using profile location");
+              }
+            } else {
+              setProfileFallback("GPS timeout, using profile location");
+            }
+          }, 8000);
+        } else {
+          setProfileFallback("Using profile location");
+        }
       } catch (err) {
         console.error(err);
       } finally {
-        setLoading(false);
+        if (!isUnmounted) {
+          setLoading(false);
+        }
       }
     };
     fetchMockProfile();
+
+    return () => {
+      isUnmounted = true;
+      if (gpsWatchId !== null) {
+        navigator.geolocation.clearWatch(gpsWatchId);
+      }
+      if (gpsTimeoutId) {
+        clearTimeout(gpsTimeoutId);
+      }
+    };
   }, []);
+
+  useEffect(() => {
+    const fallbackCity = profileData?.mockProfile?.city?.trim() || "India";
+
+    if (!gpsCoords) {
+      setCurrentCity(fallbackCity);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const resolveCityFromCoords = async () => {
+      try {
+        const res = await fetch(
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${gpsCoords.lat}&longitude=${gpsCoords.lng}&localityLanguage=en`
+        );
+
+        if (!res.ok) {
+          throw new Error("Reverse geocode failed");
+        }
+
+        const data = await res.json();
+        if (isCancelled) return;
+
+        const countryCode = String(data?.countryCode || "").toUpperCase();
+        const resolvedCity = (data?.city || data?.locality || data?.principalSubdivision || "").trim();
+
+        if (countryCode === "IN" && resolvedCity) {
+          setCurrentCity(resolvedCity);
+        } else {
+          setCurrentCity(fallbackCity);
+        }
+      } catch {
+        if (!isCancelled) {
+          setCurrentCity(fallbackCity);
+        }
+      }
+    };
+
+    resolveCityFromCoords();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [gpsCoords, profileData?.mockProfile?.city]);
+
+  const completionProps = useMemo(() => {
+    const normalizeField = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+    const fields = [
+      kycData.aadhaar, kycData.pan, kycData.photo, kycData.location,
+      kycData.age, kycData.company, kycData.partnerId, kycData.dashboardScreenshot,
+      kycData.avgWeeklyIncome, kycData.avgWorkingHours
+    ];
+    const filledFields = fields.filter((f) => normalizeField(f) !== "").length;
+    const percentage = Math.round((filledFields / fields.length) * 100);
+    return { percentage, filledFields };
+  }, [kycData]);
 
   if (loading) {
     return (
@@ -38,10 +304,31 @@ export default function DashboardPage() {
   const mockProfile = profileData?.mockProfile || null;
   const userDetails = profileData?.userDetails || null;
 
-  const fullName = userDetails?.fullName || "Marcus Sterling";
+  const fullName = toTrimmedString(userDetails?.fullName) || localUserName || "User";
   const initials = fullName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
   const accountLevel = userDetails?.accountLevel || "Pro";
-  const companies = mockProfile?.company || "Uber, Swiggy";
+  const companies = typeof mockProfile?.company === "string" ? mockProfile.company : "Uber, Swiggy";
+  const linkedAppsCount = companies.split(",").map((item: string) => item.trim()).filter(Boolean).length;
+  const primaryCompany = toTrimmedString(kycData.company) || companies.split(",")[0]?.trim() || "Not set";
+  const partnerRef = toTrimmedString(kycData.partnerId) || "Not set";
+  const serviceZone = mockProfile?.zone || "Not set";
+  const serviceCity = mockProfile?.city || "Not set";
+  const rawWeeklyIncome = toTrimmedString(kycData.avgWeeklyIncome);
+  const weeklyIncomeLabel = rawWeeklyIncome
+    ? (rawWeeklyIncome.startsWith("₹") ? rawWeeklyIncome : `₹${rawWeeklyIncome}`)
+    : "Not set";
+  const trimmedWorkingHours = toTrimmedString(kycData.avgWorkingHours);
+  const workingHoursLabel = trimmedWorkingHours ? `${trimmedWorkingHours} hrs/wk` : "Not set";
+  const locationQuery = [mockProfile?.zone, mockProfile?.city].filter(Boolean).join(", ") || "India";
+  const kycStatusLabel = completionProps.percentage >= 100 ? "KYC Verified" : `KYC ${completionProps.percentage}%`;
+  const displayedLocation = currentCity.toLowerCase() === "india" ? "India" : `${currentCity}, India`;
+  const mapSrc = gpsCoords
+    ? `https://www.google.com/maps?q=${gpsCoords.lat},${gpsCoords.lng}&z=15&output=embed`
+    : `https://www.google.com/maps?q=${encodeURIComponent(locationQuery)}&z=13&output=embed`;
+  const mapLink = gpsCoords
+    ? `https://www.google.com/maps?q=${gpsCoords.lat},${gpsCoords.lng}`
+    : `https://www.google.com/maps?q=${encodeURIComponent(locationQuery)}`;
+
   
   // Format the mock API values or fallback to default
   const formattedIncome = mockProfile?.avgDailyIncome 
@@ -49,26 +336,32 @@ export default function DashboardPage() {
     : "₹12,450";
     
   return (
-    <div className="p-8 lg:p-12 max-w-7xl mx-auto w-full relative">
+    <div className="p-6 sm:p-8 xl:p-12 max-w-7xl mx-auto w-full relative">
       
       {/* ── BACKGROUND AMBIENCE ── */}
-      <div className="absolute top-0 right-[-10%] w-[600px] h-[600px] bg-blue-400/5 rounded-full blur-[140px] pointer-events-none z-0" />
-      <div className="absolute left-[-10%] top-[40%] w-[500px] h-[500px] bg-emerald-400/5 rounded-full blur-[120px] pointer-events-none z-0" />
+      <div 
+        className="absolute top-0 right-[-10%] bg-blue-400/5 rounded-full blur-[140px] pointer-events-none z-0 transition-opacity duration-1000" 
+        style={{ width: 'clamp(24rem, 45vw, 37.5rem)', height: 'clamp(24rem, 45vw, 37.5rem)' }} 
+      />
+      <div 
+        className="absolute left-[-10%] top-[40%] bg-emerald-400/5 rounded-full blur-[120px] pointer-events-none z-0 transition-opacity duration-1000" 
+        style={{ width: 'clamp(20rem, 35vw, 31rem)', height: 'clamp(20rem, 35vw, 31rem)' }} 
+      />
 
       {/* ── PAGE HEADER ── */}
-      <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
+      <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
         <div>
           <div className="flex items-center gap-2.5 mb-2">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100/50">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100/50">
               Live Feed
             </span>
             <span className="text-slate-400 text-xs font-bold tracking-tight">Last synced: Just now</span>
           </div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-none mb-1">
+          <h1 className="text-4xl lg:text-5xl font-black text-slate-900 tracking-tight leading-none mb-2">
             Overview
           </h1>
-          <p className="text-slate-500 font-medium">
-            Your geospatial risk profile is <span className="text-emerald-500 font-bold">Stable & Protected</span>.
+          <p className="text-[13px] text-slate-500 font-medium">
+            Welcome back, <span className="text-slate-900 font-bold">{fullName}</span>. Your geospatial risk profile is <span className="text-emerald-500 font-bold">Stable & Protected</span>.
           </p>
         </div>
         
@@ -77,99 +370,241 @@ export default function DashboardPage() {
              <Bell size={18} strokeWidth={2.5} />
              <div className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full translate-x-1 -translate-y-1"></div>
           </button>
-          <div className="w-11 h-11 rounded-2xl bg-slate-100 overflow-hidden ring-1 ring-slate-200 shadow-sm flex items-center justify-center text-slate-400 font-black tracking-tight cursor-pointer hover:ring-blue-200 transition-colors">
-            {initials}
-          </div>
+          <Link
+            href="/dashboard/profile"
+            className="w-11 h-11 rounded-2xl bg-slate-100 overflow-hidden ring-1 ring-slate-200 shadow-sm flex items-center justify-center text-slate-400 font-black tracking-tight cursor-pointer hover:ring-blue-200 transition-colors"
+            aria-label="Go to profile"
+          >
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="User avatar" className="w-full h-full object-cover bg-slate-100" />
+            ) : (
+              initials
+            )}
+          </Link>
         </div>
       </div>
 
+      {/* ── CRITICAL KYC NOTIFICATION ── */}
+      {completionProps.percentage < 100 && (
+        <div className="relative z-10 bg-amber-50 border border-amber-200/60 rounded-[2rem] p-5 lg:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-10 shadow-[0_10px_40px_rgba(251,191,36,0.1)]">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 shrink-0 border border-amber-200/50">
+               <ShieldAlert size={20} strokeWidth={2.5} />
+            </div>
+            <div>
+              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-600 mb-1 inline-block">
+                Action Required
+              </span>
+              <h2 className="text-lg font-black text-slate-900 tracking-tight mb-0.5">
+                KYC Authentication Pending ({completionProps.percentage}%)
+              </h2>
+              <p className="text-[12px] text-amber-800 font-medium leading-relaxed max-w-xl">
+                Identity verification is required before buffer payouts can be settled to your banking ledger.
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={() => router.push("/dashboard/profile/kyc")}
+            className="w-full md:w-auto bg-slate-900 hover:bg-black text-white font-black px-6 py-3 rounded-xl shadow-lg shadow-slate-900/10 hover:-translate-y-0.5 transition-all text-[12px] flex items-center justify-center gap-2 group shrink-0"
+          >
+            <Fingerprint size={16} />
+            {completionProps.percentage > 0 ? "Resume KYC" : "Start KYC"}
+            <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
+      )}
+
       {/* ── METRICS GRID ── */}
-      <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 mb-8">
+      <motion.div 
+         initial={{ opacity: 0, y: 15 }} 
+         animate={{ opacity: 1, y: 0 }} 
+         transition={{ duration: 0.5, staggerChildren: 0.1 }} 
+        className="relative z-10 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 items-stretch gap-5 lg:gap-6 mb-6"
+      >
         
         {/* Profile Identity Card */}
-        <div className="bg-white/80 backdrop-blur-2xl rounded-[2rem] p-6 lg:p-8 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex flex-col items-center text-center">
-          <div className="relative mb-5">
-            <div className="w-20 h-20 bg-gradient-to-tr from-slate-100 to-slate-200 rounded-full border-[3px] border-white shadow-md flex items-center justify-center text-xl font-black text-slate-400 tracking-tight">
-               {initials}
+        <motion.div 
+           initial={{ opacity: 0, y: 20 }} 
+           animate={{ opacity: 1, y: 0 }} 
+          className="bg-white/80 backdrop-blur-2xl rounded-[2rem] p-5 lg:p-6 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex flex-col text-center h-full min-h-[290px]"
+        >
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <div className="relative mb-5">
+              <div className="w-20 h-20 bg-gradient-to-tr from-slate-100 to-slate-200 rounded-full border-[3px] border-white shadow-md overflow-hidden flex items-center justify-center text-xl font-black text-slate-400 tracking-tight">
+                 {avatarUrl ? (
+                   <img src={avatarUrl} alt="User avatar" className="w-full h-full object-contain bg-slate-100" />
+                 ) : (
+                   initials
+                 )}
+              </div>
+              <div className="absolute bottom-0 right-0 bg-white rounded-full w-6 h-6 flex items-center justify-center shadow-sm border border-slate-100">
+                <BadgeCheck size={16} className="text-blue-500 fill-blue-50" />
+              </div>
             </div>
-            <div className="absolute bottom-0 right-0 bg-white rounded-full w-6 h-6 flex items-center justify-center shadow-sm border border-slate-100">
-              <BadgeCheck size={16} className="text-blue-500 fill-blue-50" />
+            <h2 className="text-lg font-black text-slate-900 mb-1 tracking-tight">{fullName}</h2>
+            <p className="text-xs text-slate-400 font-bold tracking-widest uppercase">Verified Gig Driver</p>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-black tracking-wide">{accountLevel} Tier</span>
+              <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black tracking-wide">{kycStatusLabel}</span>
+            </div>
+            <p className="mt-2 text-[11px] text-slate-500 font-bold tracking-tight">{locationQuery}</p>
+            <div className="mt-3 w-full rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2 grid grid-cols-2 gap-x-3 gap-y-2 text-left">
+              <div>
+                <p className="text-[9px] uppercase font-black text-slate-300 tracking-[0.2em]">Company</p>
+                <p className="text-[11px] font-bold text-slate-700 truncate">{primaryCompany}</p>
+              </div>
+              <div>
+                <p className="text-[9px] uppercase font-black text-slate-300 tracking-[0.2em]">Partner ID</p>
+                <p className="text-[11px] font-bold text-slate-700 truncate">{partnerRef}</p>
+              </div>
+              <div>
+                <p className="text-[9px] uppercase font-black text-slate-300 tracking-[0.2em]">Service Zone</p>
+                <p className="text-[11px] font-bold text-slate-700 truncate">{serviceZone}</p>
+              </div>
+              <div>
+                <p className="text-[9px] uppercase font-black text-slate-300 tracking-[0.2em]">City</p>
+                <p className="text-[11px] font-bold text-slate-700 truncate">{serviceCity}</p>
+              </div>
             </div>
           </div>
-          <h2 className="text-lg font-black text-slate-900 mb-1 tracking-tight">{fullName}</h2>
-          <p className="text-xs text-slate-400 font-bold tracking-widest uppercase mb-6">Verified Gig Driver</p>
           
-          <div className="w-full flex justify-between px-2 border-t border-slate-100/60 pt-5">
+          <div className="w-full flex justify-between px-2 border-t border-slate-100/60 pt-4 mt-4">
             <div className="text-left">
-               <p className="text-[9px] uppercase font-black text-slate-300 tracking-[0.2em] mb-1">Account Level</p>
-               <p className="text-[13px] font-bold text-slate-900 tracking-tight">{accountLevel}</p>
+               <p className="text-[9px] uppercase font-black text-slate-300 tracking-[0.2em] mb-1">KYC Progress</p>
+               <p className="text-[13px] font-bold text-slate-900 tracking-tight">{completionProps.percentage}%</p>
             </div>
             <div className="text-right">
-               <p className="text-[9px] uppercase font-black text-slate-300 tracking-[0.2em] mb-1">Platforms Linked</p>
-               <p className="text-[13px] font-bold text-slate-900 tracking-tight">{companies}</p>
+              <p className="text-[9px] uppercase font-black text-slate-300 tracking-[0.2em] mb-1">Apps Linked</p>
+              <p className="text-[13px] font-bold text-slate-900 tracking-tight">{linkedAppsCount}</p>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Protected Income Floor */}
-        <div className="bg-slate-900 rounded-[2rem] p-6 lg:p-8 shadow-[0_20px_50px_rgba(15,23,42,0.15)] text-white flex flex-col justify-between relative overflow-hidden group">
+        <motion.div 
+           initial={{ opacity: 0, y: 20 }} 
+           animate={{ opacity: 1, y: 0 }} 
+           transition={{ delay: 0.1 }}
+            className="bg-slate-900 rounded-[2rem] p-5 lg:p-6 shadow-[0_20px_50px_rgba(15,23,42,0.15)] text-white flex flex-col justify-between relative overflow-hidden group h-full min-h-[290px]"
+        >
           {/* Subtle animated card reflection */}
           <div className="absolute inset-0 bg-gradient-to-bl from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
           
-          <div className="relative z-10">
-            <div className="flex justify-between items-start mb-6">
-              <span className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-[9px] uppercase font-black tracking-[0.2em]">
-                 Guaranteed Floor
+          <div className="relative z-10 flex flex-col flex-1">
+            <div className="flex justify-between items-start mb-4">
+              <span className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-[9px] uppercase font-black tracking-[0.2em] flex items-center gap-1.5">
+                 <Wallet size={12} strokeWidth={2.5}/> Guaranteed Floor
               </span>
-              <Wallet size={20} className="text-emerald-400" />
+              <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-[0.15em] text-slate-300">Auto-Claim On</span>
             </div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Available Buffer</p>
-            <h2 className="text-4xl lg:text-5xl font-black tracking-tight mb-2">{formattedIncome}</h2>
-            <p className="text-xs font-medium text-slate-500">+₹850 accrued from disruptions this week.</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Available Buffer</p>
+            <div className="flex items-end gap-3 mb-3">
+              <h2 className="text-3xl lg:text-4xl font-black tracking-tight">{formattedIncome}</h2>
+              <span className="text-[12px] font-black text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md mb-2 flex items-center gap-1">
+                <TrendingUp size={14} /> 12%
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className="rounded-lg border border-white/10 bg-white/5 px-2 py-2">
+                <p className="text-[8px] uppercase tracking-[0.15em] font-black text-slate-400">Daily Buffer</p>
+                <p className="text-[11px] font-black text-white truncate">{formattedIncome}</p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-white/5 px-2 py-2">
+                <p className="text-[8px] uppercase tracking-[0.15em] font-black text-slate-400">Weekly Avg</p>
+                <p className="text-[11px] font-black text-white truncate">{weeklyIncomeLabel}</p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-white/5 px-2 py-2">
+                <p className="text-[8px] uppercase tracking-[0.15em] font-black text-slate-400">Hours / Week</p>
+                <p className="text-[11px] font-black text-white truncate">{workingHoursLabel}</p>
+              </div>
+            </div>
+            
+            {/* Visual Bar Chart Mockup */}
+            <div className="flex items-end gap-2 h-12 w-full opacity-80 mt-auto mb-4">
+               <div className="w-1/6 bg-white/10 hover:bg-white/20 transition-colors rounded-t-sm h-[30%]" />
+               <div className="w-1/6 bg-white/10 hover:bg-white/20 transition-colors rounded-t-sm h-[45%]" />
+               <div className="w-1/6 bg-white/10 hover:bg-white/20 transition-colors rounded-t-sm h-[20%]" />
+               <div className="w-1/6 bg-emerald-500/80 hover:bg-emerald-400 transition-colors rounded-t-sm h-[80%] shadow-[0_0_15px_rgba(16,185,129,0.5)] relative">
+                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[8px] font-black text-emerald-300 tracking-widest">+₹850</div>
+               </div>
+               <div className="w-1/6 bg-white/10 hover:bg-white/20 transition-colors rounded-t-sm h-[60%]" />
+               <div className="w-1/6 bg-white/10 hover:bg-white/20 transition-colors rounded-t-sm h-[50%]" />
+            </div>
           </div>
 
-          <div className="flex gap-3 relative z-10 mt-8">
-            <button className="flex-1 bg-white/10 hover:bg-white/15 text-white py-3.5 rounded-2xl font-bold text-sm transition-colors border border-white/5 backdrop-blur-md">
+          <div className="flex gap-3 relative z-10 w-full shrink-0">
+            <button className="flex-1 bg-white/10 hover:bg-white/15 text-white py-3.5 rounded-2xl font-black text-[13px] transition-colors border border-white/5 backdrop-blur-md">
               Withdraw
             </button>
-            <button className="flex-x bg-emerald-500 hover:bg-emerald-400 text-slate-900 px-6 py-3.5 rounded-2xl font-black text-sm transition-colors shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+            <button className="flex-1 shrink-0 bg-emerald-500 hover:bg-emerald-400 text-slate-900 px-6 py-3.5 rounded-2xl font-black text-[13px] transition-colors shadow-[0_0_20px_rgba(16,185,129,0.2)]">
               Auto-Claim
             </button>
           </div>
-        </div>
+        </motion.div>
 
         {/* Coverage Active Status */}
-        <div className="bg-white/80 backdrop-blur-2xl rounded-[2rem] p-6 lg:p-8 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex flex-col justify-between">
-          <div>
-            <div className="flex justify-between items-center mb-6">
+        <motion.div 
+           initial={{ opacity: 0, y: 20 }} 
+           animate={{ opacity: 1, y: 0 }} 
+           transition={{ delay: 0.2 }}
+          className="lg:col-span-2 xl:col-span-1 bg-white/80 backdrop-blur-2xl rounded-[2rem] p-5 lg:p-6 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex flex-col h-full min-h-[290px]"
+        >
+          <div className="flex flex-col flex-1">
+            <div className="flex justify-between items-start mb-5">
               <span className="bg-blue-50 text-blue-600 text-[9px] uppercase font-black tracking-[0.2em] px-3 py-1.5 rounded-lg border border-blue-100/50">
                  Active Status
               </span>
               <Activity size={20} className="text-blue-500" />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">Geospatial Protection</h2>
-            <p className="text-sm text-slate-500 font-medium leading-relaxed">
-              Monitoring hyper-local weather patterns, traffic congestion, and blockades to guarantee standard earning rates.
+            <h2 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">Current Location</h2>
+            <p className="text-xs text-slate-500 font-bold tracking-wide mb-4 leading-relaxed break-words">
+              {displayedLocation}
             </p>
+            <div className="relative overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-slate-100 h-[180px] sm:h-[205px] xl:h-[220px]">
+              <iframe
+                title="User GPS Location"
+                src={mapSrc}
+                className="absolute inset-0 h-full w-full border-0"
+                loading="eager"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            </div>
           </div>
-          <button className="flex justify-between items-center w-full pt-6 mt-6 border-t border-slate-100/60 text-[13px] font-black tracking-tight text-blue-600 hover:text-blue-700 transition-colors group">
-            Configure Threat Thresholds
+          <a
+            href={mapLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex justify-between items-center w-full pt-5 mt-5 border-t border-slate-100/60 text-[13px] font-black tracking-tight text-blue-600 hover:text-blue-700 transition-colors group"
+          >
+            Open In Google Maps
             <ArrowRight size={16} className="transform group-hover:translate-x-1 transition-transform" />
-          </button>
-        </div>
-      </div>
+          </a>
+        </motion.div>
+
+      </motion.div>
+
+
 
       {/* ── INTELLIGENCE FEED & HISTORY ── */}
-      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+      <motion.div 
+        initial={{ opacity: 0, y: 15 }} 
+        animate={{ opacity: 1, y: 0 }} 
+        transition={{ delay: 0.4 }}
+        className="relative z-10 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8 mb-10"
+      >
         
         {/* Recent Disruption Payouts */}
-        <div className="lg:col-span-2 bg-white/80 backdrop-blur-2xl rounded-[2rem] p-6 lg:p-8 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white">
+        <div className="lg:col-span-2 xl:col-span-2 bg-white/80 backdrop-blur-2xl rounded-[2rem] p-6 lg:p-8 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex flex-col h-full hover:shadow-[0_20px_60px_rgba(0,0,0,0.04)] transition-shadow duration-500">
           <div className="flex justify-between items-end mb-8">
             <div>
-               <h2 className="text-xl font-black text-slate-900 tracking-tight mb-1">Recent Buffer Payouts</h2>
-               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">History of earnings protected automatically.</p>
+               <div className="flex items-center gap-2 mb-1">
+                 <HistoryIcon size={16} className="text-slate-400" />
+                 <h2 className="text-xl font-black text-slate-900 tracking-tight">Recent Buffer Payouts</h2>
+               </div>
+               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-6">History of earnings protected automatically.</p>
             </div>
-            <button className="text-xs font-black tracking-tight text-slate-400 hover:text-slate-900 transition-colors py-2 px-4 rounded-xl border border-slate-200/60">
+            <button className="text-xs font-black tracking-tight text-slate-500 hover:text-slate-900 transition-colors py-2.5 px-5 rounded-xl border border-slate-200/60 bg-slate-50 hover:bg-slate-100/50 shadow-sm">
               Download Log
             </button>
           </div>
@@ -263,7 +698,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Intelligence Brief */}
-        <div className="bg-white/80 backdrop-blur-2xl rounded-[2rem] p-6 lg:p-8 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex flex-col relative overflow-hidden">
+        <div className="bg-white/80 backdrop-blur-2xl rounded-[2rem] p-6 lg:p-8 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex flex-col relative overflow-hidden hover:shadow-[0_20px_60px_rgba(0,0,0,0.04)] transition-shadow duration-500">
           
           <div className="mb-8">
             <h2 className="text-xl font-black text-slate-900 tracking-tight mb-1">Intelligence Brief</h2>
@@ -315,12 +750,12 @@ export default function DashboardPage() {
 
           </div>
           
-          <button className="w-full mt-8 py-3.5 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60 rounded-xl text-sm font-black tracking-tight transition-colors shadow-sm">
+          <button className="w-full mt-auto py-3.5 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60 rounded-xl text-sm font-black tracking-tight transition-colors shadow-sm focus:ring-4 focus:ring-slate-100">
             Configure Radars
           </button>
         </div>
 
-      </div>
+      </motion.div>
     </div>
   );
 }

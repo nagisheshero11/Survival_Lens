@@ -13,7 +13,11 @@ import {
   BadgeCheck,
   Mail,
   Smartphone,
-  ShieldHalf
+  ShieldHalf,
+  Briefcase,
+  Store,
+  ShoppingCart,
+  Car
 } from "lucide-react";
 import { getKycData, calculateKycCompletion } from "../../../(services)/kyc";
 import { getMe } from "../../../(services)/auth";
@@ -34,6 +38,29 @@ export default function ProfilePage() {
 
   // ── KYC API FETCH ──
   const [completionProps, setCompletionProps] = useState({ percentage: 0, filledFields: 0, totalFields: 11 });
+
+  // ── PARTNERS STATE ──
+  const [selectedCategory, setSelectedCategory] = useState("Food Delivery");
+  const [selectedPartners, setSelectedPartners] = useState<string[]>(["Swiggy", "Uber"]);
+  
+  const PARTNER_CATEGORIES = [
+    { id: "Food Delivery", icon: Store, partners: ["Swiggy", "Zomato", "Eats"] },
+    { id: "Quick Commerce", icon: ShoppingCart, partners: ["Blinkit", "Zepto", "Instamart"] },
+    { id: "Mobility", icon: Car, partners: ["Uber", "Ola", "Rapido"] },
+    { id: "E-Commerce", icon: Briefcase, partners: ["Amazon", "Flipkart", "Myntra"] }
+  ];
+
+  const handlePartnerToggle = (partner: string) => {
+    if (selectedPartners.includes(partner)) {
+       if (selectedPartners.length > 1) {
+          setSelectedPartners(prev => prev.filter(p => p !== partner));
+       }
+    } else {
+       if (selectedPartners.length < 4) {
+          setSelectedPartners(prev => [...prev, partner]);
+       }
+    }
+  };
 
   // Dynamically resolve mapped parameters strictly bypassing legacy crashing instances natively
   useEffect(() => {
@@ -95,7 +122,10 @@ export default function ProfilePage() {
     <div className="p-8 lg:p-12 max-w-7xl mx-auto w-full relative min-h-full">
       
       {/* ── BACKGROUND AMBIENCE ── */}
-      <div className={`absolute top-[-5%] right-[-5%] w-[500px] h-[500px] ${completionProps.percentage === 100 ? "bg-emerald-400/5" : "bg-amber-400/5"} rounded-full blur-[140px] pointer-events-none z-0 transition-colors duration-1000`} />
+      <div 
+         className={`absolute top-[-5%] right-[-5%] ${completionProps.percentage === 100 ? "bg-emerald-400/5" : "bg-amber-400/5"} rounded-full blur-[140px] pointer-events-none z-0 transition-colors duration-1000`} 
+         style={{ width: "clamp(24rem, 45vw, 37.5rem)", height: "clamp(24rem, 45vw, 37.5rem)" }}
+      />
 
       {/* ── CRITICAL KYC NOTIFICATION ── */}
       {completionProps.percentage < 100 ? (
@@ -212,43 +242,73 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* ── RIGHT COLUMN: Configuration ── */}
-        <div className="lg:col-span-2 space-y-6 lg:space-y-8 flex flex-col">
-          
-          {/* KYC Tracking Widget - ONLY SHOWN IF < 100%, otherwise hidden because banner takes over! */}
-          {completionProps.percentage < 100 && (
-            <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-8 lg:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-amber-100 relative overflow-hidden shrink-0">
-               <div className="absolute right-0 top-0 bottom-0 w-64 bg-gradient-to-l from-amber-50/50 to-transparent pointer-events-none" />
-               <div className="flex items-center gap-3 mb-6 relative z-10">
-                 <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-md">
-                    <Fingerprint size={20} strokeWidth={2.5} />
-                 </div>
+        {/* ── MIDDLE COLUMN: Platform Affiliations ── */}
+        <div className="flex flex-col">
+          <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-8 lg:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex-1 flex flex-col">
+             
+             {/* Section 1: Delivery Partners */}
+             <div className="mb-10 flex-1">
+               <div className="flex justify-between items-end mb-6">
                  <div>
-                    <h2 className="text-xl font-black text-slate-900 tracking-tight">Regulatory Authentication</h2>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">KYC Protocol Sequence</p>
+                   <label className="block text-[11px] font-black text-slate-900 uppercase tracking-widest mb-1 flex items-center gap-2">
+                     <Briefcase size={16} className="text-slate-400" /> Platform Affiliations
+                   </label>
+                   <p className="text-[12px] text-slate-500 font-medium">Select your primary sectors and link up to 4 gig platforms.</p>
+                 </div>
+                 <div className="text-[11px] font-black tracking-widest uppercase bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg border border-slate-200/60 shadow-inner">
+                    {selectedPartners.length} / 4 Linked
                  </div>
                </div>
 
-               <div className="bg-white rounded-[1.5rem] p-6 border border-slate-100 shadow-sm relative z-10">
-                  <div className="flex justify-between items-end mb-4">
-                     <h3 className="text-md font-black text-slate-900 tracking-tight">Completion Progress</h3>
-                     <span className="text-[14px] font-black text-amber-600 tracking-tight">{completionProps.filledFields} out of {completionProps.totalFields} verified</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden mb-6 shadow-inner">
-                      <motion.div initial={{ width: 0 }} animate={{ width: `${completionProps.percentage}%` }} className="bg-amber-500 h-full rounded-full transition-all duration-700 ease-out" />
-                  </div>
-                  <button onClick={() => router.push("/dashboard/profile/kyc")} className="w-full py-4 rounded-xl border-2 border-dashed border-amber-300 hover:border-amber-500 hover:bg-amber-50 text-slate-600 hover:text-amber-700 transition-colors font-black tracking-tight text-[14px]">
-                     Continue KYC Protocol
-                  </button>
+               <div className="bg-slate-50 rounded-2xl p-2 border border-slate-100 flex overflow-x-auto no-scrollbar mb-6">
+                 {PARTNER_CATEGORIES.map(cat => {
+                   const isActive = selectedCategory === cat.id;
+                   return (
+                     <button 
+                       key={cat.id} 
+                       onClick={() => setSelectedCategory(cat.id)}
+                       className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-[12px] font-black tracking-tight whitespace-nowrap transition-all ${isActive ? 'bg-white text-slate-900 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-700'}`}
+                     >
+                       <cat.icon size={14} className={isActive ? 'text-blue-500' : 'text-slate-400'} />
+                       {cat.id}
+                     </button>
+                   )
+                 })}
                </div>
-            </div>
-          )}
 
-          {/* Delivery Partners & Setup */}
-          <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-8 lg:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex-1 min-h-[500px]">
+               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 min-h-[140px]">
+                 <AnimatePresence mode="popLayout">
+                    {PARTNER_CATEGORIES.find(c => c.id === selectedCategory)?.partners.map(partner => {
+                      const isSelected = selectedPartners.includes(partner);
+                      return (
+                         <motion.button
+                            key={partner}
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            transition={{ type: "spring", bounce: 0.2 }}
+                            onClick={() => handlePartnerToggle(partner)}
+                            className={`p-6 rounded-2xl border-2 flex flex-col items-center justify-center transition-all ${isSelected ? 'border-blue-500 bg-blue-50/50 shadow-[0_0_20px_rgba(59,130,246,0.1)]' : 'border-slate-100 bg-white hover:border-slate-200'}`}
+                         >
+                            <div className={`w-6 h-6 rounded-md border ${isSelected ? 'bg-blue-500 border-blue-600 shadow-sm flex items-center justify-center' : 'bg-white border-slate-200 mb-0'} text-white transition-colors mb-3`}>
+                               {isSelected && <BadgeCheck size={14} strokeWidth={3} className="text-white fill-blue-500" />}
+                            </div>
+                            <span className={`text-[14px] font-black tracking-tight ${isSelected ? 'text-blue-900' : 'text-slate-600'}`}>{partner}</span>
+                         </motion.button>
+                      )
+                    })}
+                 </AnimatePresence>
+               </div>
+             </div>
+          </div>
+        </div>
+
+        {/* ── RIGHT COLUMN: Configuration ── */}
+        <div className="flex flex-col">
+          <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-8 lg:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex-1 flex flex-col">
              
              {/* Section 2: Address */}
-             <div className="mb-10 pt-8 border-t border-slate-100">
+             <div className="mb-10">
                <label className="block text-[11px] font-black text-slate-900 uppercase tracking-widest mb-3 flex items-center gap-2">
                  <MapPin size={16} className="text-slate-400" /> Complete Registration Address
                </label>
