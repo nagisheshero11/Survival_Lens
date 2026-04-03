@@ -1,6 +1,2 @@
-fastapi
-uvicorn
-pytest
-scikit-learn
-pandas
-numpy
+venv\Scripts\activate
+python -m uvicorn app.main:app --reload

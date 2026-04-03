@@ -86,6 +86,29 @@ def calculate_premium(risk_score: float) -> float:
     return round(max(min(adjusted, max_premium), min_premium), 2)
 
 
+def calculate_weather_score_from_data(data: dict) -> float:
+    """
+    Calculate a 0-100 weather score from fetched data.
+    Weights based on typical impact ranges.
+    """
+    if not data:
+        return 50.0  # Default score if data unavailable
+
+    rain_mm = data.get("rain_mm", 0)
+    temp_c = data.get("temp_c", 20)
+    wind_kmh = data.get("wind_kmh", 0)
+    aqi = data.get("aqi", 50)
+
+    # Normalize and weight contributions
+    rain_score = min(rain_mm / 50.0, 1.0) * 30  # Up to 30 points for heavy rain
+    temp_score = max(0, (temp_c - 20) / 30.0) * 25  # Up to 25 points for high temp
+    wind_score = min(wind_kmh / 100.0, 1.0) * 20  # Up to 20 points for strong wind
+    aqi_score = min(aqi / 500.0, 1.0) * 25  # Up to 25 points for poor air quality
+
+    total_score = rain_score + temp_score + wind_score + aqi_score
+    return min(max(total_score, 0.0), 100.0)
+
+
 def calculate_premium_tiers(risk_score: float) -> dict:
     # dynamic coefficients generate three distinct, non-hardcoded tiers.
     trend = (math.sin(risk_score / 23.7) + 1.2) / 2.3
