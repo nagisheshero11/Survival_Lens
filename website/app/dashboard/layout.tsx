@@ -8,19 +8,19 @@ import {
   Vote,
   ShieldCheck,
   User,
-  HelpCircle,
   LogOut,
   Wallet,
+  FileText,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const NAV_ITEMS = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "Wallet", href: "/dashboard/wallet", icon: Wallet },
+  { name: "Claims", href: "/dashboard/claims", icon: FileText },
   { name: "Voting", href: "/dashboard/voting", icon: Vote },
   { name: "Coverage Plans", href: "/dashboard/plans", icon: ShieldCheck },
   { name: "Profile", href: "/dashboard/profile", icon: User },
-  { name: "Raise Ticket", href: "/dashboard/support", icon: HelpCircle },
 ];
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
