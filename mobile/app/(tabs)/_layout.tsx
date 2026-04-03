@@ -71,11 +71,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="wallet"
         options={{
-          title: "Profile",
+          title: "Wallet",
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="user" focused={focused} />
+            <TabIcon name="credit-card" focused={focused} />
           ),
         }}
       />

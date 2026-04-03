@@ -2,6 +2,7 @@ import { ScrollView, View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
 // ─── Payout row ──────────────────────────────────────────────────────────────
 function PayoutRow({
@@ -82,6 +83,8 @@ function IntelRow({
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 export default function HomeScreen() {
+  const router = useRouter();
+
   return (
     <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
       <StatusBar style="dark" />
@@ -105,9 +108,14 @@ export default function HomeScreen() {
               <Feather name="bell" size={16} color="#475569" />
               <View className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
             </TouchableOpacity>
-            <View className="w-9 h-9 rounded-2xl bg-slate-100 border border-slate-200 items-center justify-center">
+            <TouchableOpacity
+              onPress={() => router.push("/profile")}
+              className="w-9 h-9 rounded-2xl bg-slate-100 border border-slate-200 items-center justify-center"
+              accessibilityRole="button"
+              accessibilityLabel="Open profile"
+            >
               <Text className="text-xs font-extrabold text-slate-500">MS</Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
 
