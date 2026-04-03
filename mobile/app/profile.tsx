@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   View,
   Text,
@@ -8,11 +9,59 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Feather } from "@expo/vector-icons";
+import { calculateKycCompletion, getKyc, updateKyc } from "../services/kycService";
 
 export default function ProfileScreen() {
-  const [percentage] = useState(70); // Mocking 70% completion
+  const [percentage, setPercentage] = useState(0);
+  const [kycData, setKycData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   const isComplete = percentage === 100;
+
+  useEffect(() => {
+    const loadKyc = async () => {
+      try {
+        const response = await getKyc();
+        setKycData(response);
+        const completion = calculateKycCompletion(response, response?.companies || []);
+        setPercentage(completion.percentage);
+      } catch {
+        setPercentage(0);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadKyc();
+  }, []);
+
+  const handleSupplyDocuments = async () => {
+    try {
+      const nextPayload = {
+        ...(kycData || {}),
+        photo: kycData?.photo || "uploaded_file.png",
+      };
+      await updateKyc(nextPayload);
+      const refreshed = await getKyc();
+      setKycData(refreshed);
+      const completion = calculateKycCompletion(refreshed, refreshed?.companies || []);
+      setPercentage(completion.percentage);
+    } catch {
+      // Preserve screen stability even when API update fails.
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
+        <StatusBar style="dark" />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="small" color="#2563eb" />
+          <Text className="mt-3 text-xs font-bold text-slate-500">Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
@@ -90,7 +139,7 @@ export default function ProfileScreen() {
             <View className="bg-white rounded-[40px] p-8 border border-slate-100 mb-6">
               <View className="flex-row items-center gap-3 mb-6">
                 <View className="w-10 h-10 bg-slate-900 rounded-2xl items-center justify-center shadow-lg shadow-slate-900/10">
-                  <Feather name="fingerprint" size={20} color="white" />
+                  <Feather name="shield" size={20} color="white" />
                 </View>
                 <View>
                   <Text className="text-lg font-extrabold text-slate-900">Authentication</Text>
@@ -108,7 +157,7 @@ export default function ProfileScreen() {
                 <View className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden shadow-inner mb-6">
                   <View className="h-full bg-blue-600 rounded-full" style={{ width: `${percentage}%` }} />
                 </View>
-                <TouchableOpacity className="w-full py-4 rounded-2xl border-2 border-dashed border-slate-200 items-center">
+                <TouchableOpacity onPress={handleSupplyDocuments} className="w-full py-4 rounded-2xl border-2 border-dashed border-slate-200 items-center">
                   <Text className="text-xs font-extrabold text-slate-400">
                     + Supply Missing Documents
                   </Text>
