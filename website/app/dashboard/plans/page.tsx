@@ -8,6 +8,8 @@ import {
   Lock, Wallet, Calendar, CheckCircle
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
+import { getKycData } from "@/(services)/kyc";
+import { getSubscription, selectPlan, paySubscription } from "@/(services)/subscription";
 
 type SubscriptionData = {
   planAmount: number;
@@ -40,17 +42,9 @@ export default function PlansPage() {
       
       // Async proper validation
       try {
-        const token = localStorage.getItem("token");
-        const res = await fetch("/api/kyc", {
-          method: "GET",
-          headers: token ? { "Authorization": `Bearer ${token}` } : {},
-          credentials: "include"
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setKycStatus(data.kyc.status);
-          localStorage.setItem("survivalLensKyc", JSON.stringify(data.kyc));
-        }
+        const kycData = await getKycData();
+        setKycStatus(kycData.status);
+        localStorage.setItem("survivalLensKyc", JSON.stringify(kycData));
       } catch (err) {}
     };
 
@@ -62,19 +56,11 @@ export default function PlansPage() {
   const fetchSubscription = async () => {
     try {
       setIsLoading(true);
-      const token = localStorage.getItem("token");
-      const res = await fetch('/api/subscription', {
-        headers: token ? { "Authorization": `Bearer ${token}` } : {},
-        credentials: "include"
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSubscription(data);
-      } else {
-        setSubscription(null);
-      }
+      const data = await getSubscription();
+      setSubscription(data);
     } catch (err) {
       console.error(err);
+      setSubscription(null);
     } finally {
       setIsLoading(false);
     }
@@ -88,27 +74,11 @@ export default function PlansPage() {
     
     setIsProcessing(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch('/api/subscription/select', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...(token ? { "Authorization": `Bearer ${token}` } : {})
-        },
-        credentials: "include",
-        body: JSON.stringify({ amount })
-      });
-      
-      const data = await res.json();
-      
-      if (res.ok) {
-        toast.success(`Successfully activated ${data.subscription.planName} plan!`);
-        await fetchSubscription();
-      } else {
-        toast.error(data.message || 'Failed to select plan');
-      }
-    } catch (err) {
-      toast.error('Network error occurred.');
+      const data = await selectPlan(amount);
+      toast.success(`Successfully activated ${data.subscription.planName} plan!`);
+      await fetchSubscription();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to select plan');
     } finally {
       setIsProcessing(false);
     }
@@ -117,26 +87,11 @@ export default function PlansPage() {
   const handlePayWeekly = async () => {
     setIsProcessing(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch('/api/subscription/pay', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...(token ? { "Authorization": `Bearer ${token}` } : {})
-        },
-        credentials: "include"
-      });
-      
-      const data = await res.json();
-      
-      if (res.ok) {
-        toast.success(`Payment successful! Ref: ${data.paymentRef}`);
-        await fetchSubscription();
-      } else {
-        toast.error(data.message || 'Payment failed');
-      }
-    } catch (err) {
-      toast.error('Network error occurred.');
+      const data = await paySubscription();
+      toast.success(`Payment successful! Ref: ${data.paymentRef}`);
+      await fetchSubscription();
+    } catch (err: any) {
+      toast.error(err.message || 'Payment failed');
     } finally {
       setIsProcessing(false);
     }
