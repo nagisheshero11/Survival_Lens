@@ -2,21 +2,55 @@
 import { useState, useEffect } from "react";
 import { Wallet, Loader2, AlertCircle, ArrowUpRight, ArrowDownLeft, Receipt } from "lucide-react";
 import { getWallet } from "@/(services)/wallet";
+import { useRouter } from "next/navigation";
 
 export default function WalletPage() {
+  const router = useRouter();
   const [balance, setBalance] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [kycProgress, setKycProgress] = useState(0);
+  const [walletLocked, setWalletLocked] = useState(false);
 
   useEffect(() => {
     const fetchWalletData = async () => {
+      // Use local KYC data to determine whether wallet should be gated.
+      const savedKyc = localStorage.getItem("survivalLensKyc");
+      if (savedKyc) {
+        try {
+          const parsed = JSON.parse(savedKyc) || {};
+          const fields = [
+            parsed.aadhaar,
+            parsed.pan,
+            parsed.photo,
+            parsed.location,
+            parsed.age,
+            parsed.company,
+            parsed.partnerId,
+            parsed.dashboardScreenshot,
+            parsed.avgWeeklyIncome,
+            parsed.avgWorkingHours,
+          ];
+          const filled = fields.filter((f) => String(f ?? "").trim() !== "").length;
+          const progress = Math.round((filled / fields.length) * 100);
+          setKycProgress(progress);
+        } catch {
+          setKycProgress(0);
+        }
+      }
+
       try {
         const data = await getWallet();
         setBalance(data.balance);
         setTransactions(data.transactions || []);
       } catch (err: any) {
-        setError(err.message || 'An error occurred while fetching wallet data');
+        const message = err?.message || "An error occurred while fetching wallet data";
+        if (/wallet not found/i.test(message)) {
+          setWalletLocked(true);
+        } else {
+          setError(message);
+        }
       } finally {
         setLoading(false);
       }
@@ -72,6 +106,47 @@ export default function WalletPage() {
         <div className="relative z-10 bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl flex items-center gap-3">
           <AlertCircle size={20} />
           <p className="font-semibold text-sm">{error}</p>
+        </div>
+      ) : walletLocked ? (
+        <div className="relative z-10 max-w-2xl rounded-[2rem] border border-amber-200 bg-amber-50/80 p-6 lg:p-8 shadow-[0_10px_30px_rgba(251,191,36,0.12)]">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-200/70 text-amber-700 flex items-center justify-center">
+              <AlertCircle size={18} />
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.2em] font-black text-amber-600">Wallet Locked</p>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Complete KYC To Enable Wallet</h2>
+            </div>
+          </div>
+
+          <p className="text-sm text-amber-900/80 font-medium leading-relaxed mb-4">
+            Your wallet is provisioned only after identity verification is complete.
+          </p>
+
+          <div className="mb-5">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[11px] font-black uppercase tracking-[0.15em] text-amber-700">KYC Progress</p>
+              <p className="text-[12px] font-black text-amber-800">{kycProgress}%</p>
+            </div>
+            <div className="h-2 w-full rounded-full bg-amber-200/70 overflow-hidden">
+              <div className="h-full rounded-full bg-amber-500" style={{ width: `${kycProgress}%` }} />
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={() => router.push("/dashboard/profile/kyc")}
+              className="px-5 py-3 rounded-xl bg-slate-900 hover:bg-black text-white text-sm font-black transition-colors"
+            >
+              {kycProgress > 0 ? "Resume KYC" : "Start KYC"}
+            </button>
+            <button
+              onClick={() => router.push("/dashboard/profile")}
+              className="px-5 py-3 rounded-xl bg-white border border-amber-200 text-amber-700 hover:bg-amber-100/40 text-sm font-black transition-colors"
+            >
+              Open Profile
+            </button>
+          </div>
         </div>
       ) : (
         <div className="relative z-10 grid grid-cols-1 gap-8">
