@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Wallet, Loader2, AlertCircle, ArrowUpRight, ArrowDownLeft, Receipt } from "lucide-react";
+import { getWallet } from "@/(services)/wallet";
 
 export default function WalletPage() {
   const [balance, setBalance] = useState<number | null>(null);
@@ -11,15 +12,7 @@ export default function WalletPage() {
   useEffect(() => {
     const fetchWalletData = async () => {
       try {
-        const res = await fetch('/api/wallet', {
-          credentials: 'include'
-        });
-        
-        if (!res.ok) {
-          throw new Error('Failed to fetch wallet data');
-        }
-        
-        const data = await res.json();
+        const data = await getWallet();
         setBalance(data.balance);
         setTransactions(data.transactions || []);
       } catch (err: any) {

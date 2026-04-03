@@ -8,6 +8,8 @@ import {
   Lock, Wallet, Calendar, CheckCircle
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
+import { getKycData } from "@/(services)/kyc";
+import { getSubscription, selectPlan, paySubscription } from "@/(services)/subscription";
 
 type SubscriptionData = {
   planAmount: number;
@@ -40,17 +42,9 @@ export default function PlansPage() {
       
       // Async proper validation
       try {
-        const token = localStorage.getItem("token");
-        const res = await fetch("/api/kyc", {
-          method: "GET",
-          headers: token ? { "Authorization": `Bearer ${token}` } : {},
-          credentials: "include"
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setKycStatus(data.kyc.status);
-          localStorage.setItem("survivalLensKyc", JSON.stringify(data.kyc));
-        }
+        const kycData = await getKycData();
+        setKycStatus(kycData.status);
+        localStorage.setItem("survivalLensKyc", JSON.stringify(kycData));
       } catch (err) {}
     };
 
@@ -62,19 +56,11 @@ export default function PlansPage() {
   const fetchSubscription = async () => {
     try {
       setIsLoading(true);
-      const token = localStorage.getItem("token");
-      const res = await fetch('/api/subscription', {
-        headers: token ? { "Authorization": `Bearer ${token}` } : {},
-        credentials: "include"
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSubscription(data);
-      } else {
-        setSubscription(null);
-      }
+      const data = await getSubscription();
+      setSubscription(data);
     } catch (err) {
       console.error(err);
+      setSubscription(null);
     } finally {
       setIsLoading(false);
     }
@@ -88,27 +74,11 @@ export default function PlansPage() {
     
     setIsProcessing(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch('/api/subscription/select', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...(token ? { "Authorization": `Bearer ${token}` } : {})
-        },
-        credentials: "include",
-        body: JSON.stringify({ amount })
-      });
-      
-      const data = await res.json();
-      
-      if (res.ok) {
-        toast.success(`Successfully activated ${data.subscription.planName} plan!`);
-        await fetchSubscription();
-      } else {
-        toast.error(data.message || 'Failed to select plan');
-      }
-    } catch (err) {
-      toast.error('Network error occurred.');
+      const data = await selectPlan(amount);
+      toast.success(`Successfully activated ${data.subscription.planName} plan!`);
+      await fetchSubscription();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to select plan');
     } finally {
       setIsProcessing(false);
     }
@@ -117,32 +87,34 @@ export default function PlansPage() {
   const handlePayWeekly = async () => {
     setIsProcessing(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch('/api/subscription/pay', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...(token ? { "Authorization": `Bearer ${token}` } : {})
-        },
-        credentials: "include"
-      });
-      
-      const data = await res.json();
-      
-      if (res.ok) {
-        toast.success(`Payment successful! Ref: ${data.paymentRef}`);
-        await fetchSubscription();
-      } else {
-        toast.error(data.message || 'Payment failed');
-      }
-    } catch (err) {
-      toast.error('Network error occurred.');
+      const data = await paySubscription();
+      toast.success(`Payment successful! Ref: ${data.paymentRef}`);
+      await fetchSubscription();
+    } catch (err: any) {
+      toast.error(err.message || 'Payment failed');
     } finally {
       setIsProcessing(false);
     }
   };
 
   if (!isMounted) return null;
+
+  let paymentInfo = { allowed: true, daysRemaining: 0, nextDate: null as Date | null };
+  if (subscription && subscription.lastPaymentDate) {
+    const lastDate = new Date(subscription.lastPaymentDate);
+    const currentDate = new Date();
+    const diffTime = currentDate.getTime() - lastDate.getTime();
+    const daysPassed = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    const nextDate = new Date(lastDate);
+    nextDate.setDate(nextDate.getDate() + 7);
+    
+    paymentInfo.nextDate = nextDate;
+    if (daysPassed < 7) {
+      paymentInfo.allowed = false;
+      paymentInfo.daysRemaining = 7 - daysPassed;
+    }
+  }
 
   return (
     <div className="p-8 lg:p-12 max-w-7xl mx-auto w-full relative min-h-full">
@@ -201,7 +173,7 @@ export default function PlansPage() {
                  </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-10">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100/60">
                     <div className="flex items-center gap-2 mb-2 text-slate-500">
                        <Calendar size={18} strokeWidth={2.5} />
@@ -209,6 +181,15 @@ export default function PlansPage() {
                     </div>
                     <p className="text-lg font-black text-slate-900 tracking-tight">
                        {subscription.lastPaymentDate ? new Date(subscription.lastPaymentDate).toLocaleDateString() : "Never"}
+                    </p>
+                 </div>
+                 <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100/60">
+                    <div className="flex items-center gap-2 mb-2 text-slate-500">
+                       <Calendar size={18} strokeWidth={2.5} />
+                       <span className="text-[11px] font-bold uppercase tracking-widest">Next Payment</span>
+                    </div>
+                    <p className="text-lg font-black text-slate-900 tracking-tight">
+                       {paymentInfo.nextDate ? paymentInfo.nextDate.toLocaleDateString() : "Now"}
                     </p>
                  </div>
                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100/60">
@@ -232,18 +213,18 @@ export default function PlansPage() {
                     <p className={`text-sm font-medium ${subscription.duePayments > 0 ? 'text-red-500/80' : 'text-emerald-600/80'}`}>
                        {subscription.duePayments > 0 
                          ? "You must clear your dues to ensure algorithmic protection continues." 
-                         : "Your coverage is fully active for the week."}
+                         : (!paymentInfo.allowed ? `Next payment available in ${paymentInfo.daysRemaining} days.` : "Your coverage is fully active for the week.")}
                     </p>
                  </div>
                  
                  <button 
                     onClick={handlePayWeekly}
-                    disabled={isProcessing}
+                    disabled={isProcessing || !paymentInfo.allowed}
                     className={`shrink-0 font-black tracking-tight py-3.5 px-8 rounded-xl transition-all shadow-sm flex items-center gap-2 outline-none
                        ${subscription.duePayments > 0 
                          ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-500/20' 
                          : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20'}
-                       ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5'}
+                       ${(isProcessing || !paymentInfo.allowed) ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5'}
                     `}
                  >
                     {isProcessing ? 'Processing...' : `Pay ₹${subscription.planAmount}`}

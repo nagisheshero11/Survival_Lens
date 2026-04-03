@@ -2,6 +2,9 @@ import { ScrollView, View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { getProfile } from "../../services/activityService";
 
 // ─── Payout row ──────────────────────────────────────────────────────────────
 function PayoutRow({
@@ -82,6 +85,32 @@ function IntelRow({
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 export default function HomeScreen() {
+  const router = useRouter();
+  const [profile, setProfile] = useState<any>(null);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const data = await getProfile();
+        setProfile(data);
+      } catch {
+        setProfile(null);
+      }
+    };
+
+    loadProfile();
+  }, []);
+
+  const fullName = profile?.userDetails?.fullName || "Marcus Sterling";
+  const initials = useMemo(
+    () => fullName.split(" ").map((item: string) => item[0]).join("").slice(0, 2).toUpperCase(),
+    [fullName]
+  );
+  const companies = profile?.mockProfile?.company || "Uber, Swiggy";
+  const bufferAmount = profile?.mockProfile?.avgDailyIncome
+    ? `₹${Number(profile.mockProfile.avgDailyIncome).toLocaleString("en-IN")}`
+    : "₹12,450";
+
   return (
     <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
       <StatusBar style="dark" />
@@ -105,9 +134,14 @@ export default function HomeScreen() {
               <Feather name="bell" size={16} color="#475569" />
               <View className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
             </TouchableOpacity>
-            <View className="w-9 h-9 rounded-2xl bg-slate-100 border border-slate-200 items-center justify-center">
-              <Text className="text-xs font-extrabold text-slate-500">MS</Text>
-            </View>
+            <TouchableOpacity
+              onPress={() => router.push("/profile")}
+              className="w-9 h-9 rounded-2xl bg-slate-100 border border-slate-200 items-center justify-center"
+              accessibilityRole="button"
+              accessibilityLabel="Open profile"
+            >
+              <Text className="text-xs font-extrabold text-slate-500">{initials}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -139,7 +173,7 @@ export default function HomeScreen() {
                 <Feather name="check-circle" size={14} color="#3b82f6" />
               </View>
             </View>
-            <Text className="text-base font-extrabold text-slate-900 mb-0.5">Marcus Sterling</Text>
+            <Text className="text-base font-extrabold text-slate-900 mb-0.5">{fullName}</Text>
             <Text className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-4">
               Verified Gig Driver
             </Text>
@@ -154,7 +188,7 @@ export default function HomeScreen() {
                 <Text className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">
                   Platforms Linked
                 </Text>
-                <Text className="text-sm font-extrabold text-slate-900">Uber, Swiggy</Text>
+                <Text className="text-sm font-extrabold text-slate-900">{companies}</Text>
               </View>
             </View>
           </View>
@@ -172,7 +206,7 @@ export default function HomeScreen() {
             <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">
               Available Buffer
             </Text>
-            <Text className="text-4xl font-extrabold text-white mb-1.5">₹12,450</Text>
+            <Text className="text-4xl font-extrabold text-white mb-1.5">{bufferAmount}</Text>
             <Text className="text-xs text-slate-500 font-medium mb-6">
               +₹850 accrued from disruptions this week.
             </Text>

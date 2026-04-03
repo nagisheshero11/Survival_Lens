@@ -30,6 +30,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Subscription is not active" }, { status: 400 });
     }
 
+    // Weekly Validation
+    const currentDate = new Date();
+    if (subscription.lastPaymentDate) {
+      const daysPassed = Math.floor((currentDate.getTime() - subscription.lastPaymentDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysPassed < 7) {
+        return NextResponse.json({ message: "Payment already made for this week" }, { status: 400 });
+      }
+    }
+
     // Determine amount to charge
     const chargeAmount = subscription.planAmount;
 
@@ -69,9 +78,21 @@ export async function POST(request: NextRequest) {
     const { paymentRef } = await paymentRes.json();
 
     // Update Subscription metrics
-    subscription.lastPaymentDate = new Date();
+    const today = new Date();
+    subscription.lastPaymentDate = today;
     subscription.totalPayments += 1;
-    subscription.duePayments = 0; // Reset dues after successful payment
+    
+    // Dynamic Due Payments Calculation (Weekly Logic)
+    const diffFromStart = today.getTime() - subscription.startDate.getTime();
+    const daysFromStart = Math.floor(diffFromStart / (1000 * 60 * 60 * 24));
+    const weeksPassed = Math.floor(daysFromStart / 7);
+
+    // Compute due payments
+    let newDue = weeksPassed - subscription.totalPayments;
+    if (newDue < 0) {
+      newDue = 0;
+    }
+    subscription.duePayments = newDue;
     
     await subscription.save();
 

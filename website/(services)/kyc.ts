@@ -20,9 +20,10 @@ export interface IKycData {
 }
 
 export const getKycData = async () => {
-  const token = localStorage.getItem("token");
+  const API_URL = process.env.NEXT_PUBLIC_SERVER_API_URL || process.env.SERVER_API_URL || "";
+  const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
   
-  const res = await fetch("/api/kyc", {
+  const res = await fetch(`${API_URL}/api/kyc`, {
     method: "GET",
     headers: token ? { "Authorization": `Bearer ${token}` } : {},
     credentials: "include"
@@ -34,7 +35,8 @@ export const getKycData = async () => {
 };
 
 export const saveKycData = async (payload: Partial<IKycData>) => {
-  const token = localStorage.getItem("token");
+  const API_URL = process.env.NEXT_PUBLIC_SERVER_API_URL || process.env.SERVER_API_URL || "";
+  const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
   
   const headers: Record<string, string> = {
     "Content-Type": "application/json"
@@ -44,7 +46,7 @@ export const saveKycData = async (payload: Partial<IKycData>) => {
     headers["Authorization"] = `Bearer ${token}`;
   }
   
-  const res = await fetch("/api/kyc", {
+  const res = await fetch(`${API_URL}/api/kyc`, {
     method: "POST",
     headers,
     credentials: "include",

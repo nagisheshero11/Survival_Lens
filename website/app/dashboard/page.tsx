@@ -2,10 +2,44 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, Wallet, ShieldCheck, ArrowRight, Activity, CloudRain, Flame, Construction, BadgeCheck, Loader2, ShieldAlert, Fingerprint, TrendingUp, History } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import {
+  Bell,
+  Wallet,
+  ShieldCheck,
+  ArrowRight,
+  Activity,
+  CloudRain,
+  Flame,
+  Construction,
+  BadgeCheck,
+  Loader2,
+  ShieldAlert,
+  Fingerprint,
+  TrendingUp,
+  History as HistoryIcon,
+} from "lucide-react";
+import { motion } from "framer-motion";
 
 export default function DashboardPage() {
+  const toTrimmedString = (value: unknown) => {
+    if (typeof value === "string") return value.trim();
+    if (typeof value === "number") return String(value).trim();
+    return "";
+  };
+
+  const defaultKycData = {
+    aadhaar: "",
+    pan: "",
+    photo: "",
+    location: "",
+    age: "",
+    company: "",
+    partnerId: "",
+    dashboardScreenshot: "",
+    avgWeeklyIncome: "",
+    avgWorkingHours: "",
+  };
+
   const [profileData, setProfileData] = useState<any>(null);
   const [localUserName, setLocalUserName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -16,11 +50,7 @@ export default function DashboardPage() {
   const [gpsStatus, setGpsStatus] = useState("Trying GPS...");
   const [loading, setLoading] = useState(true);
 
-  const [kycData, setKycData] = useState({
-    aadhaar: "", pan: "", photo: "", location: "",
-    age: "", company: "", partnerId: "", dashboardScreenshot: "",
-    avgWeeklyIncome: "", avgWorkingHours: ""
-  });
+  const [kycData, setKycData] = useState(defaultKycData);
 
   useEffect(() => {
     let isUnmounted = false;
@@ -29,7 +59,10 @@ export default function DashboardPage() {
 
     const savedKyc = localStorage.getItem("survivalLensKyc");
     if (savedKyc) {
-      try { setKycData(JSON.parse(savedKyc)); } catch {}
+      try {
+        const parsed = JSON.parse(savedKyc);
+        setKycData({ ...defaultKycData, ...(parsed || {}) });
+      } catch {}
     }
 
     const applyLivePosition = (position: GeolocationPosition) => {
@@ -248,12 +281,13 @@ export default function DashboardPage() {
   }, [gpsCoords, profileData?.mockProfile?.city]);
 
   const completionProps = useMemo(() => {
+    const normalizeField = (value: unknown) => (typeof value === "string" ? value.trim() : "");
     const fields = [
       kycData.aadhaar, kycData.pan, kycData.photo, kycData.location,
       kycData.age, kycData.company, kycData.partnerId, kycData.dashboardScreenshot,
       kycData.avgWeeklyIncome, kycData.avgWorkingHours
     ];
-    const filledFields = fields.filter(f => f.trim() !== "").length;
+    const filledFields = fields.filter((f) => normalizeField(f) !== "").length;
     const percentage = Math.round((filledFields / fields.length) * 100);
     return { percentage, filledFields };
   }, [kycData]);
@@ -270,20 +304,21 @@ export default function DashboardPage() {
   const mockProfile = profileData?.mockProfile || null;
   const userDetails = profileData?.userDetails || null;
 
-  const fullName = userDetails?.fullName || localUserName || "User";
+  const fullName = toTrimmedString(userDetails?.fullName) || localUserName || "User";
   const initials = fullName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
   const accountLevel = userDetails?.accountLevel || "Pro";
-  const companies = mockProfile?.company || "Uber, Swiggy";
+  const companies = typeof mockProfile?.company === "string" ? mockProfile.company : "Uber, Swiggy";
   const linkedAppsCount = companies.split(",").map((item: string) => item.trim()).filter(Boolean).length;
-  const primaryCompany = kycData.company?.trim() || companies.split(",")[0]?.trim() || "Not set";
-  const partnerRef = kycData.partnerId?.trim() || "Not set";
+  const primaryCompany = toTrimmedString(kycData.company) || companies.split(",")[0]?.trim() || "Not set";
+  const partnerRef = toTrimmedString(kycData.partnerId) || "Not set";
   const serviceZone = mockProfile?.zone || "Not set";
   const serviceCity = mockProfile?.city || "Not set";
-  const rawWeeklyIncome = kycData.avgWeeklyIncome?.trim() || "";
+  const rawWeeklyIncome = toTrimmedString(kycData.avgWeeklyIncome);
   const weeklyIncomeLabel = rawWeeklyIncome
     ? (rawWeeklyIncome.startsWith("₹") ? rawWeeklyIncome : `₹${rawWeeklyIncome}`)
     : "Not set";
-  const workingHoursLabel = kycData.avgWorkingHours?.trim() ? `${kycData.avgWorkingHours.trim()} hrs/wk` : "Not set";
+  const trimmedWorkingHours = toTrimmedString(kycData.avgWorkingHours);
+  const workingHoursLabel = trimmedWorkingHours ? `${trimmedWorkingHours} hrs/wk` : "Not set";
   const locationQuery = [mockProfile?.zone, mockProfile?.city].filter(Boolean).join(", ") || "India";
   const kycStatusLabel = completionProps.percentage >= 100 ? "KYC Verified" : `KYC ${completionProps.percentage}%`;
   const displayedLocation = currentCity.toLowerCase() === "india" ? "India" : `${currentCity}, India`;
@@ -564,7 +599,7 @@ export default function DashboardPage() {
           <div className="flex justify-between items-end mb-8">
             <div>
                <div className="flex items-center gap-2 mb-1">
-                 <History size={16} className="text-slate-400" />
+                 <HistoryIcon size={16} className="text-slate-400" />
                  <h2 className="text-xl font-black text-slate-900 tracking-tight">Recent Buffer Payouts</h2>
                </div>
                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-6">History of earnings protected automatically.</p>
