@@ -1,5 +1,7 @@
 import { useState } from "react";
 import {
+  Alert,
+  ActivityIndicator,
   ScrollView,
   View,
   Text,
@@ -16,6 +18,55 @@ export default function PlansScreen() {
   const [step, setStep] = useState<"calculator" | "plans">("calculator");
   const [income, setIncome] = useState<number>(8000);
   const [location, setLocation] = useState<Location>("Urban");
+  const [subscription, setSubscription] = useState<any>(null);
+  const [loadingSubscription, setLoadingSubscription] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const fetchSubscription = async () => {
+    try {
+      setLoadingSubscription(true);
+      const { getSubscription } = await import("../../services/subscriptionService");
+      const data = await getSubscription();
+      setSubscription(data);
+      if (data) {
+        setStep("plans");
+      }
+    } catch {
+      setSubscription(null);
+    } finally {
+      setLoadingSubscription(false);
+    }
+  };
+
+  const handleSelectPlan = async (amount: number) => {
+    try {
+      setIsProcessing(true);
+      const { selectPlan } = await import("../../services/subscriptionService");
+      await selectPlan(amount);
+      await fetchSubscription();
+      Alert.alert("Plan Activated", `₹${amount} weekly plan selected successfully.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to select plan";
+      Alert.alert("Plan Selection Failed", message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handlePaySubscription = async () => {
+    try {
+      setIsProcessing(true);
+      const { paySubscription } = await import("../../services/subscriptionService");
+      const result = await paySubscription();
+      await fetchSubscription();
+      Alert.alert("Payment Successful", `Reference: ${result?.paymentRef || "N/A"}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Payment failed";
+      Alert.alert("Payment Failed", message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   // Calculate dynamic weekly pricing (Mirroring Web Logic)
   const calculatePricing = () => {
@@ -72,7 +123,24 @@ export default function PlansScreen() {
                 ? "Configure your base operating metrics to calculate the exact algorithmic premium required."
                 : `Based on a ${location} zone with ₹${income.toLocaleString()} income, we recommend these buffers.`}
             </Text>
+            {subscription && (
+              <TouchableOpacity
+                onPress={handlePaySubscription}
+                disabled={isProcessing}
+                className="mt-4 self-start bg-emerald-600 px-4 py-2.5 rounded-xl"
+              >
+                <Text className="text-white text-[11px] font-extrabold uppercase tracking-widest">
+                  {isProcessing ? "Processing..." : `Pay Active Plan (₹${subscription.planAmount})`}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
+
+          {loadingSubscription && (
+            <View className="items-center mb-4">
+              <ActivityIndicator size="small" color="#2563eb" />
+            </View>
+          )}
 
           {step === "calculator" ? (
             <View className="bg-white rounded-[40px] p-8 border border-slate-100 shadow-sm shadow-slate-200/50">
@@ -193,7 +261,7 @@ export default function PlansScreen() {
                     <Text className="text-sm font-bold text-slate-400">Gridlock & Traffic Overrides</Text>
                   </View>
                 </View>
-                <TouchableOpacity className="w-full bg-slate-50 py-4 rounded-2xl border border-slate-200 items-center">
+                <TouchableOpacity onPress={() => handleSelectPlan(90)} disabled={isProcessing} className="w-full bg-slate-50 py-4 rounded-2xl border border-slate-200 items-center">
                   <Text className="text-slate-600 font-extrabold text-sm">Pay ₹{pricing.lite.premium} / wk</Text>
                 </TouchableOpacity>
               </View>
@@ -235,7 +303,7 @@ export default function PlansScreen() {
                     </View>
                   ))}
                 </View>
-                <TouchableOpacity className="w-full bg-blue-600 py-4 rounded-2xl items-center flex-row justify-center gap-2 shadow-lg shadow-blue-600/30">
+                <TouchableOpacity onPress={() => handleSelectPlan(110)} disabled={isProcessing} className="w-full bg-blue-600 py-4 rounded-2xl items-center flex-row justify-center gap-2 shadow-lg shadow-blue-600/30">
                   <Text className="text-white font-extrabold text-sm">Pay ₹{pricing.pro.premium} / wk</Text>
                   <Feather name="arrow-right" size={16} color="white" />
                 </TouchableOpacity>
@@ -270,7 +338,7 @@ export default function PlansScreen() {
                     </View>
                   ))}
                 </View>
-                <TouchableOpacity className="w-full bg-slate-900 py-4 rounded-2xl items-center">
+                <TouchableOpacity onPress={() => handleSelectPlan(150)} disabled={isProcessing} className="w-full bg-slate-900 py-4 rounded-2xl items-center">
                   <Text className="text-white font-extrabold text-sm">Pay ₹{pricing.max.premium} / wk</Text>
                 </TouchableOpacity>
               </View>

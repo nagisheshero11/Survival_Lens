@@ -1,4 +1,4 @@
-import { View, Text, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { Alert, View, Text, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
@@ -6,14 +6,35 @@ import React, { useState } from "react";
 import { TabSwitcher } from "../components/TabSwitcher";
 import { InputField } from "../components/InputField";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { loginUser } from "../services/authService";
 
 export default function LoginScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("Standard");
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = () => {
-    // Authenticate logic would go here
-    router.replace("/(tabs)");
+  const handleLogin = async () => {
+    if (activeTab !== "Standard") {
+      Alert.alert("OTP Mode", "OTP login flow is not configured yet.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const payload = identifier.includes("@")
+        ? { email: identifier.trim(), password }
+        : { mobile: identifier.trim(), password };
+
+      await loginUser(payload);
+      router.replace("/(tabs)");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Login failed";
+      Alert.alert("Login Failed", message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -48,6 +69,8 @@ export default function LoginScreen() {
               icon="at-sign"
               keyboardType="email-address"
               autoCapitalize="none"
+              value={identifier}
+              onChangeText={setIdentifier}
             />
 
             <InputField
@@ -57,10 +80,12 @@ export default function LoginScreen() {
               isPassword
               rightLabel="Forgot Password?"
               onRightLabelPress={() => {}}
+              value={password}
+              onChangeText={setPassword}
             />
 
             <View className="mt-6 mb-10">
-              <PrimaryButton title="Login to Dashboard" onPress={handleLogin} />
+              <PrimaryButton title={isSubmitting ? "Signing In..." : "Login to Dashboard"} onPress={handleLogin} />
             </View>
 
             <View className="flex-row items-center mb-10">

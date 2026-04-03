@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
+  ActivityIndicator,
   ScrollView,
   View,
   Text,
@@ -11,9 +13,25 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Feather } from "@expo/vector-icons";
+import { createClaim, getClaims } from "../../services/claimService";
+
+type Ticket = {
+  id: string;
+  status: string;
+  statusColor: string;
+  statusBg: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  iconColor: string;
+  iconBg: string;
+  title: string;
+  desc: string;
+  time: string;
+  priority?: string;
+  resolution?: string;
+};
 
 // ─── Data ──────────────────────────────────────────────────────────────────
-const TICKETS = [
+const TICKETS: Ticket[] = [
   {
     id: "SL-9421",
     status: "Audit Pending",
@@ -56,9 +74,8 @@ const TICKETS = [
 ];
 
 // ─── Ticket Card ────────────────────────────────────────────────────────────
-function TicketCard({ ticket }: { ticket: typeof TICKETS[0] }) {
+function TicketCard({ ticket }: { ticket: Ticket }) {
   const isResolved = ticket.status === "Dispute Settled";
-  const isRejected = ticket.status === "Request Refused";
 
   return (
     <View className="bg-white rounded-[32px] p-6 mb-5 border border-slate-100 shadow-sm shadow-slate-200/50">
@@ -95,7 +112,7 @@ function TicketCard({ ticket }: { ticket: typeof TICKETS[0] }) {
             Resolution Payload
           </Text>
           <Text className={`text-[12px] font-bold italic ${isResolved ? "text-emerald-900" : "text-slate-700"}`}>
-            "{ticket.resolution}"
+            {ticket.resolution}
           </Text>
         </View>
       )}
@@ -130,6 +147,80 @@ function TicketCard({ ticket }: { ticket: typeof TICKETS[0] }) {
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function SupportScreen() {
   const [isRaising, setIsRaising] = useState(false);
+  const [claims, setClaims] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [headline, setHeadline] = useState("");
+  const [report, setReport] = useState("");
+  const [amount, setAmount] = useState("");
+
+  const fetchClaims = async () => {
+    try {
+      setIsLoading(true);
+      const data = await getClaims();
+      setClaims(Array.isArray(data) ? data : []);
+    } catch {
+      setClaims([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchClaims();
+  }, []);
+
+  const apiTickets = useMemo<Ticket[]>(() => {
+    if (!claims.length) {
+      return TICKETS;
+    }
+
+    return claims.map((claim, index) => {
+      const status = String(claim.status || "pending").toLowerCase();
+      const isApproved = status === "approved";
+      const isRejected = status === "rejected";
+
+      return {
+        id: `SL-${1000 + index}`,
+        status: isApproved ? "Dispute Settled" : isRejected ? "Request Refused" : "Audit Pending",
+        statusColor: isApproved ? "#10b981" : isRejected ? "#64748b" : "#f59e0b",
+        statusBg: isApproved ? "bg-emerald-50" : isRejected ? "bg-slate-100" : "bg-amber-100",
+        icon: isApproved ? "check-circle" : isRejected ? "slash" : "alert-triangle",
+        iconColor: isApproved ? "#10b981" : isRejected ? "#94a3b8" : "#f59e0b",
+        iconBg: isApproved ? "bg-emerald-50" : isRejected ? "bg-slate-50" : "bg-amber-50",
+        title: claim.reason || "Support Claim",
+        desc: `Claimed Amount: ₹${Number(claim.amount || 0).toLocaleString("en-IN")}`,
+        time: claim.createdAt ? new Date(claim.createdAt).toLocaleDateString("en-IN") : "Recent",
+      };
+    });
+  }, [claims]);
+
+  const submitClaim = async () => {
+    const numericAmount = Number(amount);
+    if (!report.trim() || Number.isNaN(numericAmount) || numericAmount <= 0) {
+      Alert.alert("Invalid Payload", "Add report details and a valid amount.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await createClaim({
+        reason: [headline.trim(), report.trim()].filter(Boolean).join(" | "),
+        amount: numericAmount,
+      });
+      setHeadline("");
+      setReport("");
+      setAmount("");
+      setIsRaising(false);
+      await fetchClaims();
+      Alert.alert("Submitted", "Support ticket sent successfully.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Submission failed";
+      Alert.alert("Submission Failed", message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
@@ -175,7 +266,12 @@ export default function SupportScreen() {
             </Text>
           </View>
 
-          {TICKETS.map((ticket) => (
+          {isLoading ? (
+            <View className="py-10 items-center">
+              <ActivityIndicator size="small" color="#2563eb" />
+              <Text className="mt-2 text-xs font-bold text-slate-500">Loading ticket history...</Text>
+            </View>
+          ) : apiTickets.map((ticket) => (
             <TicketCard key={ticket.id} ticket={ticket} />
           ))}
         </View>
@@ -210,6 +306,22 @@ export default function SupportScreen() {
                   placeholder="e.g. Unjust Deactivation Notice"
                   placeholderTextColor="#94a3b8"
                   className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-extrabold text-slate-900"
+                  value={headline}
+                  onChangeText={setHeadline}
+                />
+              </View>
+
+              <View>
+                <Text className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                  Compensation Amount
+                </Text>
+                <TextInput
+                  placeholder="e.g. 1500"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="numeric"
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-extrabold text-slate-900"
+                  value={amount}
+                  onChangeText={setAmount}
                 />
               </View>
 
@@ -224,15 +336,18 @@ export default function SupportScreen() {
                   numberOfLines={4}
                   className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium text-slate-900"
                   style={{ textAlignVertical: "top" }}
+                  value={report}
+                  onChangeText={setReport}
                 />
               </View>
 
               <TouchableOpacity
-                onPress={() => setIsRaising(false)}
+                onPress={submitClaim}
+                disabled={isSubmitting}
                 className="w-full bg-blue-600 py-4 rounded-2xl items-center flex-row justify-center gap-2 mt-4"
               >
                 <Feather name="send" size={16} color="white" />
-                <Text className="text-white font-extrabold text-sm">Transmit to Underwriters</Text>
+                <Text className="text-white font-extrabold text-sm">{isSubmitting ? "Transmitting..." : "Transmit to Underwriters"}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>

@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Feather } from "@expo/vector-icons";
+import { getWallet } from "../../services/walletService";
 
 type WalletTransaction = {
   type: "credit" | "debit";
@@ -24,8 +25,6 @@ type WalletResponse = {
   balance: number;
   transactions: WalletTransaction[];
 };
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:3000";
 
 function formatAmount(value: number) {
   return `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
@@ -92,18 +91,7 @@ export default function WalletScreen() {
 
   const fetchWallet = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/wallet`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || data.error || "Unable to fetch wallet details");
-      }
+      const data = await getWallet();
 
       setWallet({
         balance: Number(data.balance) || 0,
