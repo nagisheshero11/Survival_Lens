@@ -63,10 +63,13 @@ export async function POST(request: NextRequest) {
     }
     
     // Accept any subset of scalar KYC fields
-    const configScalarFields = [
+    const requiredScalarFields = [
       'aadhaar', 'pan', 'photo', 'city', 'age', 
       'avgWeeklyIncome', 'avgWorkingHours'
     ];
+
+    const optionalScalarFields = ['location', 'serviceZone', 'zone', 'population'];
+    const configScalarFields = [...requiredScalarFields, ...optionalScalarFields];
     
     const updates: Record<string, any> = {};
     for (const field of configScalarFields) {
@@ -79,11 +82,11 @@ export async function POST(request: NextRequest) {
     
     const existingKyc = currentUser.kyc ? (currentUser.toObject ? currentUser.toObject().kyc : currentUser.kyc) : {};
     const existingCompanies = existingKyc.companies || [];
-    const finalCompanies = [...existingCompanies];
-    
-    const pushOperations: any[] = [];
-    
-    if (rawBody.companies && Array.isArray(rawBody.companies)) {
+    let finalCompanies = [...existingCompanies];
+
+    if (Array.isArray(rawBody.companies)) {
+      const normalizedCompanies: any[] = [];
+
       for (const incoming of rawBody.companies) {
         if (!incoming.category || !incoming.company) {
           return NextResponse.json({ message: "Category and company are required for each company entry" }, { status: 400 });
@@ -94,41 +97,26 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ message: `Invalid company '${incoming.company}' for category '${incoming.category}'` }, { status: 400 });
         }
         
-        const existingIndex = existingCompanies.findIndex((c: any) => c.company === incoming.company);
-        
-        let verified = false;
-        
-        if (existingIndex !== -1) {
-          // Update existing target in final array
-          const existing = existingCompanies[existingIndex];
-          const partnerId = incoming.partnerId !== undefined ? incoming.partnerId : existing.partnerId;
-          const dashboardScreenshot = incoming.dashboardScreenshot !== undefined ? incoming.dashboardScreenshot : existing.dashboardScreenshot;
-          
-          verified = !!(partnerId && dashboardScreenshot);
-          
-          if (incoming.category !== undefined) updates[`kyc.companies.${existingIndex}.category`] = incoming.category;
-          if (incoming.partnerId !== undefined) updates[`kyc.companies.${existingIndex}.partnerId`] = incoming.partnerId;
-          if (incoming.dashboardScreenshot !== undefined) updates[`kyc.companies.${existingIndex}.dashboardScreenshot`] = incoming.dashboardScreenshot;
-          updates[`kyc.companies.${existingIndex}.verified`] = verified;
-          
-          finalCompanies[existingIndex] = { ...existing, ...incoming, verified, partnerId, dashboardScreenshot };
-        } else {
-          // Prevent duplicates natively inside the incoming array
-          const finalIndex = finalCompanies.findIndex((c: any) => c.company === incoming.company);
-          if (finalIndex !== -1) continue;
-          
-          verified = !!(incoming.partnerId && incoming.dashboardScreenshot);
-          const newCompany = {
-            category: incoming.category,
-            company: incoming.company,
-            partnerId: incoming.partnerId || '',
-            dashboardScreenshot: incoming.dashboardScreenshot || '',
-            verified
-          };
-          pushOperations.push(newCompany);
-          finalCompanies.push(newCompany);
+        const partnerId = incoming.partnerId || '';
+        const dashboardScreenshot = incoming.dashboardScreenshot || '';
+        const verified = !!(partnerId && dashboardScreenshot);
+
+        // Prevent duplicates inside submitted array by company identifier.
+        if (normalizedCompanies.some((c: any) => c.company === incoming.company)) {
+          continue;
         }
+
+        normalizedCompanies.push({
+          category: incoming.category,
+          company: incoming.company,
+          partnerId,
+          dashboardScreenshot,
+          verified,
+        });
       }
+
+      finalCompanies = normalizedCompanies;
+      updates['kyc.companies'] = normalizedCompanies;
     }
     
     if (finalCompanies.length > 0) {
@@ -150,7 +138,7 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    const isProfileComplete = configScalarFields.every(field => {
+    const isProfileComplete = requiredScalarFields.every(field => {
       const val = finalKycState[field];
       return val !== undefined && val !== null && val !== '';
     });
@@ -171,10 +159,6 @@ export async function POST(request: NextRequest) {
     
     if (Object.keys(updates).length > 0) {
       await User.updateOne({ _id: currentUser._id }, { $set: updates });
-    }
-    
-    if (pushOperations.length > 0) {
-      await User.updateOne({ _id: currentUser._id }, { $push: { 'kyc.companies': { $each: pushOperations } } });
     }
     
     // Auto-create wallet if status is pending or approved
