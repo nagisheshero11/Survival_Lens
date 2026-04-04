@@ -8,7 +8,7 @@ def fetch_weather_data(city: str) -> dict:
     Fetch weather data from the mock API for a given city.
     Returns a dict with weather fields or None if failed.
     """
-    url = f"http://localhost:3000/api/mock/weather?city={city}"
+    url = f"https://survival-lens-3.vercel.app/api/mock/weather?city={city}"
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()

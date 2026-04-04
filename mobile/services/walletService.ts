@@ -25,9 +25,8 @@ export async function withdraw(amount: number): Promise<{ message?: string; bala
   });
 }
 
-export async function payPremium(amount: number): Promise<{ message?: string; paymentRef?: string; balance?: number }> {
-  return apiRequest<{ message?: string; paymentRef?: string; balance?: number }, { amount: number }>("/api/wallet/pay-premium", {
+export async function payPremium(): Promise<{ message?: string; paymentRef?: string; balance?: number }> {
+  return apiRequest<{ message?: string; paymentRef?: string; balance?: number }>("/api/wallet/pay-premium", {
     method: "POST",
-    body: { amount },
   });
 }

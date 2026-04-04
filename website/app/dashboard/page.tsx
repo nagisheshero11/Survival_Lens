@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getKycData } from "@/(services)/kyc";
+import { withCacheBust } from "@/lib/avatar";
+import { getScopedLocalStorageItem, getScopedStorageKey } from "@/lib/clientStorage";
 
 export default function DashboardPage() {
   const toTrimmedString = (value: unknown) => {
@@ -117,7 +119,7 @@ export default function DashboardPage() {
     let gpsWatchId: number | null = null;
     let gpsTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    const savedKyc = localStorage.getItem("survivalLensKyc");
+    const savedKyc = getScopedLocalStorageItem("survivalLensKyc");
     if (savedKyc) {
       try {
         const parsed = JSON.parse(savedKyc);
@@ -174,7 +176,7 @@ export default function DashboardPage() {
           }
         }
 
-        const savedAvatar = localStorage.getItem("survivalLensAvatar");
+        const savedAvatar = getScopedLocalStorageItem("survivalLensAvatar");
         if (savedAvatar) {
           setAvatarUrl(savedAvatar);
         }
@@ -206,7 +208,7 @@ export default function DashboardPage() {
             setLocalUserName(meData.user.fullName.trim());
           }
           if (meData?.user?.kyc?.photo?.trim()) {
-            setAvatarUrl(meData.user.kyc.photo);
+            setAvatarUrl(withCacheBust(meData.user.kyc.photo, meData.user.kyc.updatedAt));
           }
         }
 
@@ -225,7 +227,7 @@ export default function DashboardPage() {
               setAvatarUrl(liveKyc.photo);
             }
 
-            localStorage.setItem("survivalLensKyc", JSON.stringify(liveKyc));
+            localStorage.setItem(getScopedStorageKey("survivalLensKyc"), JSON.stringify(liveKyc));
           }
         } catch {
           // Fall back to the cached local KYC payload when the API is unavailable.

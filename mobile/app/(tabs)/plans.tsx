@@ -1,53 +1,77 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   ActivityIndicator,
   ScrollView,
   View,
   Text,
-  TouchableOpacity,
-  TextInput,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
-import { Feather } from "@expo/vector-icons";
+  TouchableOpacity
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { Feather } from '@expo/vector-icons';
+import { getSubscription, paySubscription } from '../../services/subscriptionService';
+import { getPricing, selectPricingPlan, type PlanType, type PricingPlan } from '../../services/pricingService';
 
-type Location = "Metropolitan" | "Urban" | "Semi-Urban" | "Rural";
+type SubscriptionData = {
+  planAmount: number;
+  planName: string;
+  totalPayments: number;
+  duePayments: number;
+  status: string;
+  lastPaymentDate: string | null;
+  startDate: string;
+};
+
+const PLAN_LABELS: Record<PlanType, string> = {
+  basic: 'Basic Plan',
+  standard: 'Standard Plan',
+  premium: 'Premium Plan'
+};
 
 export default function PlansScreen() {
-  const [step, setStep] = useState<"calculator" | "plans">("calculator");
-  const [income, setIncome] = useState<number>(8000);
-  const [location, setLocation] = useState<Location>("Urban");
-  const [subscription, setSubscription] = useState<any>(null);
-  const [loadingSubscription, setLoadingSubscription] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
+  const [plans, setPlans] = useState<PricingPlan[]>([]);
+  const [selectedPlanType, setSelectedPlanType] = useState<PlanType | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const fetchSubscription = async () => {
+  const selectedPlan = useMemo(() => {
+    if (!selectedPlanType) return null;
+    return plans.find((plan) => plan.planType === selectedPlanType) || null;
+  }, [plans, selectedPlanType]);
+
+  const fetchData = async () => {
     try {
-      setLoadingSubscription(true);
-      const { getSubscription } = await import("../../services/subscriptionService");
-      const data = await getSubscription();
-      setSubscription(data);
-      if (data) {
-        setStep("plans");
-      }
-    } catch {
+      setLoading(true);
+      const [subscriptionData, pricingData] = await Promise.all([getSubscription(), getPricing()]);
+      setSubscription(subscriptionData);
+      setPlans(Array.isArray(pricingData?.plans) ? pricingData.plans : []);
+      setSelectedPlanType(pricingData?.selectedPlan?.planType || null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to load plans';
+      Alert.alert('Pricing Unavailable', message);
+      setPlans([]);
+      setSelectedPlanType(null);
       setSubscription(null);
     } finally {
-      setLoadingSubscription(false);
+      setLoading(false);
     }
   };
 
-  const handleSelectPlan = async (amount: number) => {
+  useEffect(() => {
+    void fetchData();
+  }, []);
+
+  const handleSelectPlan = async (planType: PlanType) => {
     try {
       setIsProcessing(true);
-      const { selectPlan } = await import("../../services/subscriptionService");
-      await selectPlan(amount);
-      await fetchSubscription();
-      Alert.alert("Plan Activated", `₹${amount} weekly plan selected successfully.`);
+      await selectPricingPlan(planType);
+      await fetchData();
+      Alert.alert('Plan Selected', `${PLAN_LABELS[planType]} activated.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to select plan";
-      Alert.alert("Plan Selection Failed", message);
+      const message = error instanceof Error ? error.message : 'Failed to select plan';
+      Alert.alert('Plan Selection Failed', message);
     } finally {
       setIsProcessing(false);
     }
@@ -56,354 +80,118 @@ export default function PlansScreen() {
   const handlePaySubscription = async () => {
     try {
       setIsProcessing(true);
-      const { paySubscription } = await import("../../services/subscriptionService");
       const result = await paySubscription();
-      await fetchSubscription();
-      Alert.alert("Payment Successful", `Reference: ${result?.paymentRef || "N/A"}`);
+      await fetchData();
+      Alert.alert('Payment Successful', `Reference: ${result?.paymentRef || 'N/A'}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Payment failed";
-      Alert.alert("Payment Failed", message);
+      const message = error instanceof Error ? error.message : 'Payment failed';
+      Alert.alert('Payment Failed', message);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Calculate dynamic weekly pricing (Mirroring Web Logic)
-  const calculatePricing = () => {
-    let multiplier = 1.0;
-    if (location === "Metropolitan") multiplier = 1.4;
-    if (location === "Urban") multiplier = 1.1;
-    if (location === "Semi-Urban") multiplier = 0.85;
-    if (location === "Rural") multiplier = 0.6;
-
-    const litePremium = Math.round(income * 0.015 * multiplier);
-    const liteCoverage = Math.round(income * 0.5);
-
-    const proPremium = Math.round(income * 0.035 * multiplier);
-    const proCoverage = Math.round(income * 1.0);
-
-    const maxPremium = Math.round(income * 0.06 * multiplier);
-    const maxCoverage = Math.round(income * 1.5);
-
-    return {
-      lite: { premium: litePremium, coverage: liteCoverage },
-      pro: { premium: proPremium, coverage: proCoverage },
-      max: { premium: maxPremium, coverage: maxCoverage },
-    };
+  const formatINR = (value?: number) => {
+    if (typeof value !== 'number' || value <= 0) return '--';
+    return `₹${value.toLocaleString('en-IN')}`;
   };
 
-  const pricing = calculatePricing();
-
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
+    <SafeAreaView className="flex-1 bg-slate-50" edges={['top']}>
       <StatusBar style="dark" />
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingBottom: 32 }}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
         <View className="px-5">
-          {/* Header */}
           <View className="mt-8 mb-8">
             <View className="flex-row items-center gap-2 mb-2">
               <View className="bg-blue-50 border border-blue-100 flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg">
-                <Feather name="cpu" size={10} color="#2563eb" />
+                <Feather name="shield" size={10} color="#2563eb" />
                 <Text className="text-[9px] font-extrabold text-blue-600 uppercase tracking-widest">
-                  Dynamic Quoting Engine
+                  System Controlled Pricing
                 </Text>
               </View>
             </View>
-            <Text className="text-3xl font-extrabold text-slate-900 leading-tight">
-              {step === "calculator"
-                ? "Calibrate Your Coverage"
-                : "Your Weekly Buffers"}
-            </Text>
+            <Text className="text-3xl font-extrabold text-slate-900 leading-tight">Choose Your Plan</Text>
             <Text className="text-sm text-slate-500 font-medium mt-2 leading-relaxed">
-              {step === "calculator"
-                ? "Configure your base operating metrics to calculate the exact algorithmic premium required."
-                : `Based on a ${location} zone with ₹${income.toLocaleString()} income, we recommend these buffers.`}
+              Select one backend-generated plan. Premium payment always uses the selected plan price.
             </Text>
-            {subscription && (
+
+            {selectedPlan && (
               <TouchableOpacity
                 onPress={handlePaySubscription}
                 disabled={isProcessing}
                 className="mt-4 self-start bg-emerald-600 px-4 py-2.5 rounded-xl"
               >
                 <Text className="text-white text-[11px] font-extrabold uppercase tracking-widest">
-                  {isProcessing ? "Processing..." : `Pay Active Plan (₹${subscription.planAmount})`}
+                  {isProcessing ? 'Processing...' : `Pay ${formatINR(selectedPlan.price)}`}
                 </Text>
               </TouchableOpacity>
             )}
           </View>
 
-          {loadingSubscription && (
+          {loading && (
             <View className="items-center mb-4">
               <ActivityIndicator size="small" color="#2563eb" />
             </View>
           )}
 
-          {step === "calculator" ? (
-            <View className="bg-white rounded-[40px] p-8 border border-slate-100 shadow-sm shadow-slate-200/50">
-              {/* Income Input */}
-              <View className="mb-8">
-                <View className="flex-row items-center gap-3 mb-4">
-                  <View className="w-10 h-10 rounded-2xl bg-emerald-50 items-center justify-center">
-                    <Feather name="dollar-sign" size={20} color="#10b981" />
-                  </View>
-                  <View>
-                    <Text className="text-sm font-extrabold text-slate-900">
-                      Weekly Income
-                    </Text>
-                    <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Baseline Target
-                    </Text>
-                  </View>
-                </View>
-                <View className="bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 flex-row items-center">
-                  <Text className="text-2xl font-extrabold text-slate-900 mr-1">₹</Text>
-                  <TextInput
-                    value={income.toString()}
-                    onChangeText={(val) => setIncome(Number(val.replace(/[^0-9]/g, "")))}
-                    keyboardType="numeric"
-                    className="flex-1 text-2xl font-extrabold text-slate-900 outline-none"
-                  />
-                </View>
-                <View className="flex-row gap-2 mt-3">
-                  {[5000, 10000, 15000].map((v) => (
-                    <TouchableOpacity
-                      key={v}
-                      onPress={() => setIncome(v)}
-                      className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200"
-                    >
-                      <Text className="text-[10px] font-extrabold text-slate-500">
-                        ₹{v / 1000}k
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Location Selector */}
-              <View className="mb-10">
-                <View className="flex-row items-center gap-3 mb-4">
-                  <View className="w-10 h-10 rounded-2xl bg-indigo-50 items-center justify-center">
-                    <Feather name="map-pin" size={18} color="#6366f1" />
-                  </View>
-                  <View>
-                    <Text className="text-sm font-extrabold text-slate-900">
-                      Geopolitical Zone
-                    </Text>
-                    <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Risk Environment
-                    </Text>
-                  </View>
-                </View>
-                <View className="flex-row flex-wrap gap-2">
-                  {["Metropolitan", "Urban", "Semi-Urban", "Rural"].map((loc) => (
-                    <TouchableOpacity
-                      key={loc}
-                      onPress={() => setLocation(loc as Location)}
-                      className={`px-4 py-3 rounded-2xl border-2 ${location === loc
-                          ? "border-blue-600 bg-blue-50"
-                          : "border-slate-100 bg-white"
-                        }`}
-                    >
-                      <Text
-                        className={`text-xs font-extrabold ${location === loc ? "text-blue-700" : "text-slate-500"
-                          }`}
-                      >
-                        {loc}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <TouchableOpacity
-                onPress={() => setStep("plans")}
-                className="w-full bg-slate-900 py-4 rounded-2xl flex-row items-center justify-center gap-2"
-              >
-                <Text className="text-white font-extrabold text-base">Generate Plans</Text>
-                <Feather name="arrow-right" size={18} color="white" />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View>
-              {/* LITE TIER */}
-              <View className="bg-white rounded-[40px] p-6 mb-6 border border-slate-100 shadow-sm shadow-slate-200/50">
-                <View className="bg-slate-50 self-start px-3 py-1.5 rounded-lg border border-slate-100 mb-4">
-                  <Text className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">
-                    Lite Buffer
-                  </Text>
-                </View>
-                <View className="flex-row items-baseline gap-1 mb-2">
-                  <Text className="text-4xl font-extrabold text-slate-900">₹{pricing.lite.premium}</Text>
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    / week
-                  </Text>
-                </View>
-                <Text className="text-xs text-slate-500 font-medium mb-6">
-                  Fundamental buffering covering 50% of your ₹{income.toLocaleString()} target.
-                </Text>
-                <View className="space-y-3 mb-8">
-                  <View className="flex-row items-center gap-3">
-                    <Feather name="check-circle" size={16} color="#10b981" />
-                    <Text className="text-sm font-extrabold text-slate-700">
-                      ₹{pricing.lite.coverage.toLocaleString()} Guaranteed Floor
-                    </Text>
-                  </View>
-                  <View className="flex-row items-center gap-3">
-                    <Feather name="check-circle" size={16} color="#10b981" />
-                    <Text className="text-sm font-extrabold text-slate-700">Rain & Snow Auto-Buffer</Text>
-                  </View>
-                  <View className="flex-row items-center gap-3 opacity-30">
-                    <Feather name="x-circle" size={16} color="#94a3b8" />
-                    <Text className="text-sm font-bold text-slate-400">Gridlock & Traffic Overrides</Text>
-                  </View>
-                </View>
-                <TouchableOpacity onPress={() => handleSelectPlan(90)} disabled={isProcessing} className="w-full bg-slate-50 py-4 rounded-2xl border border-slate-200 items-center">
-                  <Text className="text-slate-600 font-extrabold text-sm">Pay ₹{pricing.lite.premium} / wk</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* PRO TIER */}
-              <View className="bg-slate-900 rounded-[40px] p-8 mb-6 relative overflow-hidden">
-                <View className="absolute top-0 right-0 opacity-10">
-                  <Feather name="zap" size={120} color="white" />
-                </View>
-                <View className="absolute top-4 right-6 bg-blue-500 px-3 py-1 rounded-full">
-                  <Text className="text-[8px] font-extrabold text-white uppercase tracking-widest">
-                    Recommended
-                  </Text>
-                </View>
-                <View className="bg-blue-500/20 self-start px-3 py-1.5 rounded-lg border border-blue-500/30 mb-4">
-                  <Text className="text-[9px] font-extrabold text-blue-400 uppercase tracking-widest">
-                    Geospatial Pro
-                  </Text>
-                </View>
-                <View className="flex-row items-baseline gap-1 mb-2">
-                  <Text className="text-5xl font-extrabold text-white">₹{pricing.pro.premium}</Text>
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    / week
-                  </Text>
-                </View>
-                <Text className="text-xs text-slate-400 font-medium mb-6">
-                  Secures 100% of your ₹{income.toLocaleString()} target against environment faults.
-                </Text>
-                <View className="space-y-4 mb-8">
-                  {[
-                    `₹${pricing.pro.coverage.toLocaleString()} Guaranteed Floor`,
-                    "Gridlock & ETA Failure overrides",
-                    "Full Environmental Array",
-                    "100% DAO Voting Power",
-                  ].map((f) => (
-                    <View key={f} className="flex-row items-center gap-3">
-                      <Feather name="check-circle" size={18} color="#3b82f6" />
-                      <Text className="text-sm font-extrabold text-white">{f}</Text>
-                    </View>
-                  ))}
-                </View>
-                <TouchableOpacity onPress={() => handleSelectPlan(110)} disabled={isProcessing} className="w-full bg-blue-600 py-4 rounded-2xl items-center flex-row justify-center gap-2 shadow-lg shadow-blue-600/30">
-                  <Text className="text-white font-extrabold text-sm">Pay ₹{pricing.pro.premium} / wk</Text>
-                  <Feather name="arrow-right" size={16} color="white" />
-                </TouchableOpacity>
-              </View>
-
-              {/* MAX TIER */}
-              <View className="bg-white rounded-[40px] p-6 mb-10 border border-slate-100 shadow-sm shadow-slate-200/50">
-                <View className="bg-amber-50 self-start px-3 py-1.5 rounded-lg border border-amber-100 mb-4">
-                  <Text className="text-[9px] font-extrabold text-amber-600 uppercase tracking-widest">
-                    Max Authority
-                  </Text>
-                </View>
-                <View className="flex-row items-baseline gap-1 mb-2">
-                  <Text className="text-4xl font-extrabold text-slate-900">₹{pricing.max.premium}</Text>
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    / week
-                  </Text>
-                </View>
-                <Text className="text-xs text-slate-500 font-medium mb-6">
-                  Unrestricted legal and algorithmic shielding targeting 150% security.
-                </Text>
-                <View className="space-y-3 mb-8">
-                  {[
-                    `₹${pricing.max.coverage.toLocaleString()} Max Coverage Cap`,
-                    "Arbitrary Deactivation Legal Fund",
-                    "Priority human mediation",
-                    "Direct DAO Treasury access",
-                  ].map((f) => (
-                    <View key={f} className="flex-row items-center gap-3">
-                      <Feather name="star" size={16} color="#f59e0b" />
-                      <Text className="text-sm font-extrabold text-slate-800">{f}</Text>
-                    </View>
-                  ))}
-                </View>
-                <TouchableOpacity onPress={() => handleSelectPlan(150)} disabled={isProcessing} className="w-full bg-slate-900 py-4 rounded-2xl items-center">
-                  <Text className="text-white font-extrabold text-sm">Pay ₹{pricing.max.premium} / wk</Text>
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity
-                onPress={() => setStep("calculator")}
-                className="self-center mb-10"
-              >
-                <Text className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">
-                  ← Recalibrate Metrics
-                </Text>
-              </TouchableOpacity>
+          {!loading && plans.length === 0 && (
+            <View className="bg-white rounded-3xl p-6 border border-slate-100">
+              <Text className="text-base font-extrabold text-slate-800">Pricing unavailable</Text>
+              <Text className="text-sm font-medium text-slate-500 mt-2">Try again after KYC approval or refresh this page.</Text>
             </View>
           )}
 
-          {/* Algorithmic Guarantee Footer */}
-          <View className="bg-white/60 border border-white rounded-[40px] p-8 mt-4">
-            <View className="flex-row items-center gap-2 mb-3">
-              <Feather name="activity" size={18} color="#10b981" />
-              <Text className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest">
-                Decentralized Vault
-              </Text>
-            </View>
-            <Text className="text-2xl font-extrabold text-slate-900 mb-3 leading-tight">
-              The Geospatial Reliability Guarantee
-            </Text>
-            <Text className="text-sm text-slate-500 font-medium leading-relaxed mb-8">
-              Every subscription tier is backed by our proprietary smart-contracts, distributing
-              risk automatically the moment your route goes red.
-            </Text>
+          {plans.map((plan) => {
+            const isSelected = plan.planType === selectedPlanType;
+            return (
+              <View key={plan.planType} className={`rounded-[32px] p-6 mb-5 border ${isSelected ? 'bg-blue-600 border-blue-500' : 'bg-white border-slate-100'}`}>
+                <View className="flex-row items-center justify-between mb-2">
+                  <Text className={`text-lg font-extrabold ${isSelected ? 'text-white' : 'text-slate-900'}`}>
+                    {PLAN_LABELS[plan.planType]}
+                  </Text>
+                  {isSelected && (
+                    <Text className="text-[10px] font-extrabold uppercase tracking-widest text-blue-100">Selected</Text>
+                  )}
+                </View>
 
-            <View className="flex-row gap-8 mb-8">
-              <View>
-                <Text className="text-3xl font-extrabold text-slate-900">99.9%</Text>
-                <Text className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">
-                  Sensor Uptime
+                <Text className={`text-4xl font-extrabold mb-1 ${isSelected ? 'text-white' : 'text-slate-900'}`}>
+                  {formatINR(plan.price)}
                 </Text>
-              </View>
-              <View>
-                <Text className="text-3xl font-extrabold text-slate-900">₹40M+</Text>
-                <Text className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">
-                  Locked Buffer
+                <Text className={`text-xs font-bold uppercase tracking-widest ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                  Weekly Premium
                 </Text>
-              </View>
-            </View>
 
-            <View className="flex-row flex-wrap gap-3">
-              {[
-                { icon: "shield" as const, label: "AES-256", bg: "bg-blue-50" },
-                { icon: "cloud" as const, label: "Radars", bg: "bg-indigo-50" },
-                { icon: "users" as const, label: "Peer Valid", bg: "bg-emerald-50" },
-                { icon: "zap" as const, label: "Instant", bg: "bg-amber-50" },
-              ].map((f) => (
-                <View
-                  key={f.label}
-                  className={`flex-1 min-w-[40%] ${f.bg} rounded-2xl p-4 items-center border border-white/50`}
-                >
-                  <Feather name={f.icon} size={20} color="#64748b" className="mb-2" />
-                  <Text className="text-[8px] font-extrabold text-slate-900 uppercase tracking-widest">
-                    {f.label}
+                <View className={`mt-4 rounded-2xl px-4 py-3 ${isSelected ? 'bg-blue-500/30' : 'bg-slate-50'}`}>
+                  <Text className={`text-sm font-extrabold ${isSelected ? 'text-white' : 'text-slate-700'}`}>
+                    Coverage: {formatINR(plan.benefitAmount)} claim benefit
                   </Text>
                 </View>
-              ))}
+
+                <TouchableOpacity
+                  onPress={() => handleSelectPlan(plan.planType)}
+                  disabled={isProcessing}
+                  className={`mt-5 py-3.5 rounded-2xl items-center ${isSelected ? 'bg-white' : 'bg-slate-900'}`}
+                >
+                  <Text className={`text-sm font-extrabold ${isSelected ? 'text-blue-700' : 'text-white'}`}>
+                    {isProcessing ? 'Processing...' : isSelected ? 'Plan Selected' : `Select ${PLAN_LABELS[plan.planType]}`}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+
+          {subscription && (
+            <View className="bg-white/60 border border-white rounded-[32px] p-6 mt-2">
+              <Text className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest">Active Subscription</Text>
+              <Text className="text-2xl font-extrabold text-slate-900 mt-2">{subscription.planName}</Text>
+              <Text className="text-sm text-slate-500 font-medium mt-1">
+                Paid: {subscription.totalPayments} | Due: {subscription.duePayments}
+              </Text>
+              <Text className="text-sm text-slate-500 font-medium mt-1">
+                Last payment: {subscription.lastPaymentDate ? new Date(subscription.lastPaymentDate).toLocaleDateString() : 'Never'}
+              </Text>
             </View>
-          </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

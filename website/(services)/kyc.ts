@@ -61,6 +61,37 @@ export const saveKycData = async (payload: Partial<IKycData>) => {
   return await res.json();
 };
 
+export const uploadKycDocument = async (
+  file: File,
+  field: "photo" | "dashboardScreenshot"
+) => {
+  const API_URL = process.env.NEXT_PUBLIC_SERVER_API_URL || process.env.SERVER_API_URL || "";
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("field", field);
+
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${API_URL}/api/kyc/upload`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: formData,
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.message || "Failed to upload document");
+  }
+
+  return data as { url: string };
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const calculateKycCompletion = (kycData: any, companies: IKycCompany[] = []) => {
   const fields = [

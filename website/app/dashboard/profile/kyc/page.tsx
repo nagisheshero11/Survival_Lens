@@ -28,20 +28,17 @@ const COMPANY_CATEGORY_MAP: Record<string, string[]> = {
 
 const ALLOWED_CATEGORIES = Object.keys(COMPANY_CATEGORY_MAP);
 
-import { getKycData, saveKycData, calculateKycCompletion, IKycCompany } from "../../../../(services)/kyc";
+import { getKycData, saveKycData, calculateKycCompletion, IKycCompany, uploadKycDocument } from "../../../../(services)/kyc";
+import { withCacheBust } from "@/lib/avatar";
+import { getScopedLocalStorageItem, setScopedLocalStorageItem } from "@/lib/clientStorage";
 
 function KycProcessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
   const hasHydratedRef = useRef(false);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [isCameraReady, setIsCameraReady] = useState(false);
-  const [cameraError, setCameraError] = useState("");
   const [isResolvingPopulation, setIsResolvingPopulation] = useState(false);
   const [populationLookupError, setPopulationLookupError] = useState("");
   const [resolvedPopulation, setResolvedPopulation] = useState<number | null>(null);
@@ -62,6 +59,8 @@ function KycProcessContent() {
 
   const [companies, setCompanies] = useState<IKycCompany[]>([]);
   const [globalCategory, setGlobalCategory] = useState<string>("");
+  const [isPhotoUploading, setIsPhotoUploading] = useState(false);
+  const [uploadingCompanyId, setUploadingCompanyId] = useState<string | null>(null);
 
   const validation = useMemo(() => {
     const aadhaarDigits = kycData.aadhaar.replace(/\D/g, "");
@@ -111,7 +110,7 @@ function KycProcessContent() {
       // Prioritize API data directly securely mapping legacy setups natively mapped into `parsed`
       let parsed = apiData;
       if (!parsed) {
-        const saved = localStorage.getItem("survivalLensKyc");
+        const saved = getScopedLocalStorageItem("survivalLensKyc");
         if (saved) {
            try { parsed = JSON.parse(saved); } catch (e) {}
         }
@@ -295,7 +294,7 @@ function KycProcessContent() {
     if (!hasHydratedRef.current) return;
 
     const { payloadToSave, savePayload } = buildKycPayload();
-    localStorage.setItem("survivalLensKyc", JSON.stringify(payloadToSave));
+    setScopedLocalStorageItem("survivalLensKyc", JSON.stringify(payloadToSave));
 
     try {
       await saveKycData(savePayload);
@@ -346,7 +345,7 @@ function KycProcessContent() {
       syncAvatarPhoto(kycData.photo);
     }
     
-    localStorage.setItem("survivalLensKyc", JSON.stringify(payloadToSave));
+    setScopedLocalStorageItem("survivalLensKyc", JSON.stringify(payloadToSave));
     
     try {
       await saveKycData(savePayload);
@@ -463,12 +462,23 @@ function KycProcessContent() {
     });
   };
 
-  const handleGlobalMockUpload = (field: "photo") => {
-    setKycData(prev => ({ ...prev, [field]: "uploaded_file.png" }));
+  const handleProfilePhotoUpload = async (file: File | null) => {
+    if (!file) return;
+
+    setIsPhotoUploading(true);
+    try {
+      const result = await uploadKycDocument(file, "photo");
+      setKycData((prev) => ({ ...prev, photo: withCacheBust(result.url) }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to upload profile photo";
+      alert(message);
+    } finally {
+      setIsPhotoUploading(false);
+    }
   };
 
   const syncAvatarPhoto = (photoDataUrl: string) => {
-    localStorage.setItem("survivalLensAvatar", photoDataUrl);
+    setScopedLocalStorageItem("survivalLensAvatar", photoDataUrl);
 
     const storedUser = localStorage.getItem("user");
     if (!storedUser) return;
@@ -487,93 +497,19 @@ function KycProcessContent() {
     }
   };
 
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
+  const handleCompanyScreenshotUpload = async (id: string, file: File | null) => {
+    if (!file) return;
 
-    if (videoRef.current) {
-      videoRef.current.pause();
-      (videoRef.current as HTMLVideoElement).srcObject = null;
-    }
-
-    setIsCameraOpen(false);
-    setIsCameraReady(false);
-  };
-
-  const startCamera = async () => {
-    setCameraError("");
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraError("Camera access is not supported in this browser.");
-      return;
-    }
-
+    setUploadingCompanyId(id);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
-        audio: false,
-      });
-
-      streamRef.current = stream;
-      setIsCameraOpen(true);
-      setIsCameraReady(false);
-    } catch {
-      setCameraError("Camera permission was denied or unavailable.");
+      const result = await uploadKycDocument(file, "dashboardScreenshot");
+      updateCompany(id, "dashboardScreenshot", withCacheBust(result.url));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to upload screenshot";
+      alert(message);
+    } finally {
+      setUploadingCompanyId(null);
     }
-  };
-
-  const captureLivePhoto = () => {
-    const video = videoRef.current;
-    if (!video || !isCameraReady || video.videoWidth === 0 || video.videoHeight === 0) {
-      setCameraError("Camera is still initializing. Please wait a moment and try again.");
-      return;
-    }
-
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth || 720;
-    canvas.height = video.videoHeight || 720;
-
-    const context = canvas.getContext("2d");
-    if (!context) return;
-
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const photoDataUrl = canvas.toDataURL("image/jpeg", 0.92);
-
-    setKycData((prev) => ({ ...prev, photo: photoDataUrl }));
-    syncAvatarPhoto(photoDataUrl);
-    stopCamera();
-  };
-
-  useEffect(() => {
-    return () => {
-      stopCamera();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isCameraOpen || !streamRef.current || !videoRef.current) return;
-
-    const video = videoRef.current;
-    video.srcObject = streamRef.current;
-
-    const markReady = () => {
-      setIsCameraReady(true);
-      video.play().catch(() => {});
-    };
-
-    video.onloadedmetadata = markReady;
-    video.oncanplay = markReady;
-
-    return () => {
-      video.onloadedmetadata = null;
-      video.oncanplay = null;
-    };
-  }, [isCameraOpen]);
-
-  const handleCompanyMockUpload = (id: string) => {
-    updateCompany(id, "dashboardScreenshot", "screenshot_secured.png");
   };
 
   if (!isMounted) return null;
@@ -844,68 +780,25 @@ function KycProcessContent() {
 
             <div className="md:col-span-2 border-t border-slate-100 pt-8 mt-2 space-y-4">
                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Live Photo Evidence</label>
-
-               <div className={`overflow-hidden rounded-[2rem] border ${kycData.photo ? "border-emerald-500/30" : "border-slate-200"}`}>
-                 {isCameraOpen ? (
-                   <div className="space-y-4 bg-slate-950 p-4">
-                     <video
-                       ref={videoRef}
-                       autoPlay
-                       playsInline
-                       muted
-                       className="w-full aspect-video rounded-[1.5rem] bg-black object-cover"
-                     />
-                     <div className="flex flex-col sm:flex-row gap-3">
-                       <button
-                         type="button"
-                         onClick={captureLivePhoto}
-                         disabled={!isCameraReady}
-                         className={`flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-4 text-sm font-black text-white transition-colors ${isCameraReady ? "bg-emerald-500 hover:bg-emerald-400" : "bg-emerald-500/50 cursor-not-allowed"}`}
-                       >
-                         <CheckCircle2 size={18} /> {isCameraReady ? "Capture Photo" : "Camera Loading..."}
-                       </button>
-                       <button
-                         type="button"
-                         onClick={stopCamera}
-                         className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-5 py-4 text-sm font-black text-slate-200 transition-colors hover:bg-white/15"
-                       >
-                         Cancel
-                       </button>
-                     </div>
-                   </div>
+               <label className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight cursor-pointer ${kycData.photo ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
+                 <input
+                   type="file"
+                   accept="image/png,image/jpeg,image/webp"
+                   className="hidden"
+                   onChange={(e) => {
+                     const file = e.target.files?.[0] || null;
+                     void handleProfilePhotoUpload(file);
+                     e.currentTarget.value = "";
+                   }}
+                 />
+                 {isPhotoUploading ? (
+                   <><Loader2 size={18} className="animate-spin" /> Uploading photo...</>
+                 ) : kycData.photo ? (
+                   <><CheckCircle2 size={18} /> Photographic ID Secured</>
                  ) : (
-                   <button
-                     type="button"
-                     onClick={startCamera}
-                     className={`w-full flex items-center justify-center gap-3 py-10 transition-all font-black tracking-tight ${kycData.photo ? "bg-emerald-50 text-emerald-700" : "bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600"}`}
-                   >
-                     {kycData.photo ? <CheckCircle2 size={18} /> : <Fingerprint size={18} />}
-                     {kycData.photo ? "Live Photo Captured" : "Open Camera to Capture Live Photo"}
-                   </button>
+                   <><UploadCloud size={18} /> Upload Authentic Photo</>
                  )}
-               </div>
-
-               {kycData.photo && !isCameraOpen && (
-                 <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-4 flex flex-col sm:flex-row items-center gap-4">
-                   <img src={kycData.photo} alt="Captured live photo" className="w-24 h-24 rounded-2xl object-cover border border-emerald-200" />
-                   <div className="flex-1">
-                     <p className="text-sm font-black text-emerald-800">Live photo secured</p>
-                     <p className="text-[11px] font-medium text-emerald-700/80">This photo is now used across your profile and dashboard avatars.</p>
-                   </div>
-                   <button
-                     type="button"
-                     onClick={startCamera}
-                     className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-white transition-colors hover:bg-emerald-500"
-                   >
-                     Retake
-                   </button>
-                 </div>
-               )}
-
-               {cameraError && (
-                 <p className="text-[11px] font-bold text-red-500">{cameraError}</p>
-               )}
-
+               </label>
               <p className={`mt-2 text-[11px] font-bold ${validation.photoOk ? 'text-slate-400' : 'text-red-500'}`}>Required: photo evidence must be attached.</p>
             </div>
           </div>
@@ -989,10 +882,25 @@ function KycProcessContent() {
 
                   <div className="md:col-span-2 pt-2">
                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Live Dashboard Evidence</label>
-                     <button type="button" onClick={() => handleCompanyMockUpload(company.id)} className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight ${company.dashboardScreenshot ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
-                       {company.dashboardScreenshot ? <><CheckCircle2 size={18} /> Earnings Screenshot Secured</> : <><UploadCloud size={18} /> Upload Authentic Gig History Proof</>}
-                     </button>
-                    <p className="mt-2 text-[11px] font-medium text-slate-500">Upload a screenshot where your partner ID and recent earnings are visible.</p>
+                     <label className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight cursor-pointer ${company.dashboardScreenshot ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
+                       <input
+                         type="file"
+                         accept="image/png,image/jpeg,image/webp"
+                         className="hidden"
+                         onChange={(e) => {
+                           const file = e.target.files?.[0] || null;
+                           void handleCompanyScreenshotUpload(company.id, file);
+                           e.currentTarget.value = "";
+                         }}
+                       />
+                       {uploadingCompanyId === company.id ? (
+                         <><Loader2 size={18} className="animate-spin" /> Uploading screenshot...</>
+                       ) : company.dashboardScreenshot ? (
+                         <><CheckCircle2 size={18} /> Earnings Screenshot Secured</>
+                       ) : (
+                         <><UploadCloud size={18} /> Upload Authentic Gig History Proof</>
+                       )}
+                     </label>
                     <p className={`mt-2 text-[11px] font-bold ${company.dashboardScreenshot ? 'text-slate-400' : 'text-red-500'}`}>Required: attach dashboard evidence for this company.</p>
                   </div>
                 </div>

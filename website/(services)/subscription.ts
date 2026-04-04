@@ -18,7 +18,7 @@ export const getSubscription = async () => {
   return data;
 };
 
-export const selectPlan = async (amount: number) => {
+export const selectPlan = async (planType: "basic" | "standard" | "premium") => {
   const API_URL = process.env.NEXT_PUBLIC_SERVER_API_URL || process.env.SERVER_API_URL || "";
   const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -28,7 +28,7 @@ export const selectPlan = async (amount: number) => {
     method: "POST",
     headers,
     credentials: "include",
-    body: JSON.stringify({ amount }),
+    body: JSON.stringify({ planType }),
   });
 
   const data = await res.json();

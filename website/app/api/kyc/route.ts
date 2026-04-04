@@ -4,16 +4,25 @@ import User, { COMPANY_CATEGORY_MAP } from '@/models/User';
 import Wallet from '@/models/Wallet';
 import UserPricing from '@/models/UserPricing';
 import connectDB from '@/lib/db';
+import { regenerateUserPricing } from '@/lib/userPricing';
 
-const FALLBACK_PLANS = [
-  { planType: 'basic', price: 90 },
-  { planType: 'standard', price: 110 },
-  { planType: 'premium', price: 150 }
-];
+const INVALID_IMAGE_PLACEHOLDERS = new Set([
+  'uploaded_file.png',
+  'screenshot_secured.png'
+]);
 
-function toPositiveNumber(value: unknown, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+function isValidImageReference(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+
+  const normalized = value.trim();
+  if (!normalized || INVALID_IMAGE_PLACEHOLDERS.has(normalized)) return false;
+
+  return (
+    normalized.startsWith('/uploads/kyc/') ||
+    normalized.startsWith('http://') ||
+    normalized.startsWith('https://') ||
+    normalized.startsWith('data:image/')
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -61,6 +70,10 @@ export async function POST(request: NextRequest) {
     if (rawBody.company !== undefined) {
       return NextResponse.json({ message: "Legacy 'company' field is deprecated. Use 'companies' array natively." }, { status: 400 });
     }
+
+    if (rawBody.photo !== undefined && !isValidImageReference(rawBody.photo)) {
+      return NextResponse.json({ message: 'Invalid profile photo reference' }, { status: 400 });
+    }
     
     // Accept any subset of scalar KYC fields
     const requiredScalarFields = [
@@ -95,6 +108,14 @@ export async function POST(request: NextRequest) {
         const allowedComps = COMPANY_CATEGORY_MAP[incoming.category];
         if (!allowedComps || !allowedComps.includes(incoming.company)) {
           return NextResponse.json({ message: `Invalid company '${incoming.company}' for category '${incoming.category}'` }, { status: 400 });
+        }
+
+        if (
+          incoming.dashboardScreenshot !== undefined &&
+          incoming.dashboardScreenshot !== '' &&
+          !isValidImageReference(incoming.dashboardScreenshot)
+        ) {
+          return NextResponse.json({ message: 'Invalid dashboard screenshot reference' }, { status: 400 });
         }
         
         const partnerId = incoming.partnerId || '';
@@ -186,49 +207,11 @@ export async function POST(request: NextRequest) {
         const shouldGeneratePricing = !hasStoredPlans;
 
         if (shouldGeneratePricing) {
-          const city = String(finalKycState.city || '').trim();
-          let plans = FALLBACK_PLANS;
-
-          try {
-            const botBaseUrl = (process.env.BOT_API_URL || '').replace(/\/$/, '');
-            if (botBaseUrl) {
-              const aiRes = await fetch(`${botBaseUrl}/premium?city=${encodeURIComponent(city)}`);
-              if (aiRes.ok) {
-                const data = await aiRes.json();
-                const premiumOptions = data?.weekly_premium_options || {};
-
-                plans = [
-                  {
-                    planType: 'basic',
-                    price: toPositiveNumber(premiumOptions?.economy_tier, 90)
-                  },
-                  {
-                    planType: 'standard',
-                    price: toPositiveNumber(premiumOptions?.balanced_tier, 110)
-                  },
-                  {
-                    planType: 'premium',
-                    price: toPositiveNumber(premiumOptions?.safety_tier, 150)
-                  }
-                ];
-              }
-            }
-          } catch (botErr: unknown) {
-            const botMessage = botErr instanceof Error ? botErr.message : String(botErr);
-            console.error("AI pricing fetch failed, using fallback plans:", botMessage);
-          }
-
-          await UserPricing.findOneAndUpdate(
-            { userId: currentUser._id },
-            {
-              $setOnInsert: {
-                userId: currentUser._id,
-                selectedPlan: null
-              },
-              $set: { plans }
-            },
-            { upsert: true, new: true }
-          );
+          await regenerateUserPricing({
+            userId: currentUser._id,
+            city: finalKycState.city,
+            avgWeeklyIncome: finalKycState.avgWeeklyIncome
+          });
         }
       } catch (err: unknown) {
         const pricingErrorMessage = err instanceof Error ? err.message : String(err);

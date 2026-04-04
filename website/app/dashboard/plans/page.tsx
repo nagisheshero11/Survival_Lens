@@ -12,6 +12,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { getKycData } from "@/(services)/kyc";
 import { getSubscription, paySubscription } from "@/(services)/subscription";
 import { getPricing, selectPricingPlan } from "@/(services)/pricing";
+import { getScopedLocalStorageItem, setScopedLocalStorageItem } from "@/lib/clientStorage";
 
 type SubscriptionData = {
   planAmount: number;
@@ -26,7 +27,10 @@ type SubscriptionData = {
 type PricingPlan = {
   planType: "basic" | "standard" | "premium";
   price: number;
+  benefitAmount: number;
 };
+
+type PlanType = "basic" | "standard" | "premium";
 
 export default function PlansPage() {
   const router = useRouter();
@@ -35,14 +39,14 @@ export default function PlansPage() {
   
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
-  const [selectedPlanType, setSelectedPlanType] = useState<string | null>(null);
+  const [selectedPlanType, setSelectedPlanType] = useState<PlanType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     const initKyc = async () => {
       // Fallback first (visual speed)
-      const savedKyc = localStorage.getItem("survivalLensKyc");
+      const savedKyc = getScopedLocalStorageItem("survivalLensKyc");
       if (savedKyc) {
         try {
           const kycData = JSON.parse(savedKyc);
@@ -54,7 +58,7 @@ export default function PlansPage() {
       try {
         const kycData = await getKycData();
         setKycStatus(kycData.status);
-        localStorage.setItem("survivalLensKyc", JSON.stringify(kycData));
+        setScopedLocalStorageItem("survivalLensKyc", JSON.stringify(kycData));
       } catch (err) {}
     };
 
@@ -80,7 +84,7 @@ export default function PlansPage() {
     try {
       const data = await getPricing();
       setPricingPlans(Array.isArray(data?.plans) ? data.plans : []);
-      setSelectedPlanType(data?.selectedPlan?.planType || null);
+      setSelectedPlanType((data?.selectedPlan?.planType as PlanType) || null);
     } catch (err) {
       console.error(err);
       setPricingPlans([]);
@@ -88,12 +92,16 @@ export default function PlansPage() {
     }
   };
 
-  const getPlanPrice = (planType: "basic" | "standard" | "premium", fallback: number) => {
-    const matched = pricingPlans.find((plan) => plan.planType === planType);
-    return typeof matched?.price === "number" ? matched.price : fallback;
+  const getPlanDetails = (planType: "basic" | "standard" | "premium") => {
+    return pricingPlans.find((plan) => plan.planType === planType) || null;
   };
 
-  const handleSelectPlan = async (planType: "basic" | "standard" | "premium") => {
+  const formatCurrency = (value?: number) => {
+    if (typeof value !== 'number' || value <= 0) return '--';
+    return `₹${value.toLocaleString('en-IN')}`;
+  };
+
+  const handleSelectPlan = async (planType: PlanType) => {
     if (kycStatus !== 'approved') {
       toast.error('You must have an approved KYC to select a plan.');
       return;
@@ -129,6 +137,9 @@ export default function PlansPage() {
   const isKycApproved = kycStatus === 'approved';
 
   if (!isMounted) return null;
+
+  const selectedPlan = selectedPlanType ? getPlanDetails(selectedPlanType) : null;
+  const payableAmount = selectedPlan?.price ?? subscription?.planAmount;
 
   const paymentInfo = { allowed: true, daysRemaining: 0, nextDate: null as Date | null };
   if (subscription && subscription.lastPaymentDate) {
@@ -201,8 +212,9 @@ export default function PlansPage() {
                     <p className="text-sm font-bold text-slate-400">Joined {new Date(subscription.startDate).toLocaleDateString()}</p>
                  </div>
                  <div className="text-right">
-                    <h3 className="text-3xl font-black text-blue-600 tracking-tight">₹{subscription.planAmount}</h3>
+                      <h3 className="text-3xl font-black text-blue-600 tracking-tight">{formatCurrency(payableAmount)}</h3>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Per Week</p>
+                      <p className="text-[11px] font-bold text-slate-500 mt-2">Coverage: {formatCurrency(selectedPlan?.benefitAmount)}</p>
                  </div>
               </div>
 
@@ -260,7 +272,7 @@ export default function PlansPage() {
                        ${(isProcessing || !paymentInfo.allowed) ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5'}
                     `}
                  >
-                    {isProcessing ? 'Processing...' : `Pay ₹${subscription.planAmount}`}
+                      {isProcessing ? 'Processing...' : `Pay ${formatCurrency(payableAmount)}`}
                  </button>
               </div>
            </div>
@@ -310,12 +322,13 @@ export default function PlansPage() {
                   Basic
                 </span>
                 <div className="flex flex-col gap-1 mb-2">
-                  <h2 className="text-4xl font-black text-slate-900 tracking-tight">₹{getPlanPrice('basic', 90)}</h2>
+                  <h2 className="text-4xl font-black text-slate-900 tracking-tight">{formatCurrency(getPlanDetails('basic')?.price)}</h2>
                   <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-none">/ per week</span>
                 </div>
                 <p className="text-xs text-slate-500 font-bold leading-relaxed mb-6 h-10 mt-3">
                   Essential shielding for baseline security matrix guarantees.
                 </p>
+                <p className="text-xs text-slate-600 font-bold mb-4">Coverage: {formatCurrency(getPlanDetails('basic')?.benefitAmount)}</p>
               </div>
               
               <div className="flex-1">
@@ -362,12 +375,13 @@ export default function PlansPage() {
                   Standard
                 </span>
                 <div className="flex flex-col gap-1 mb-2">
-                  <h2 className="text-5xl font-black text-white tracking-tight">₹{getPlanPrice('standard', 110)}</h2>
+                  <h2 className="text-5xl font-black text-white tracking-tight">{formatCurrency(getPlanDetails('standard')?.price)}</h2>
                   <span className="text-[11px] font-bold text-blue-200 uppercase tracking-widest leading-none">/ per week</span>
                 </div>
                 <p className="text-xs text-blue-100 font-bold leading-relaxed mb-6 h-10 mt-3">
                   Optimal balance between cost capability and environment limits.
                 </p>
+                <p className="text-xs text-blue-100 font-bold mb-4">Coverage: {formatCurrency(getPlanDetails('standard')?.benefitAmount)}</p>
               </div>
               
               <div className="flex-1 relative z-10">
@@ -417,12 +431,13 @@ export default function PlansPage() {
                   Premium
                 </span>
                 <div className="flex flex-col gap-1 mb-2">
-                  <h2 className="text-5xl font-black text-white tracking-tight">₹{getPlanPrice('premium', 150)}</h2>
+                  <h2 className="text-5xl font-black text-white tracking-tight">{formatCurrency(getPlanDetails('premium')?.price)}</h2>
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest leading-none">/ per week</span>
                 </div>
                 <p className="text-xs text-slate-400 font-bold leading-relaxed mb-6 h-10 mt-3">
                   Unrestricted legal shielding and maximum algorithmic guarantees.
                 </p>
+                <p className="text-xs text-slate-300 font-bold mb-4">Coverage: {formatCurrency(getPlanDetails('premium')?.benefitAmount)}</p>
               </div>
               
               <div className="flex-1 relative z-10">
