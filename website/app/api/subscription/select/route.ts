@@ -47,12 +47,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "KYC must be approved to select a premium plan" }, { status: 403 });
     }
 
+    const companies = Array.isArray(userDoc.kyc?.companies) ? userDoc.kyc.companies : [];
+    const selectedCompany =
+      companies.find((company) => company.verified && company.partnerId) ||
+      companies.find((company) => company.partnerId) ||
+      null;
+    const partnerId = String(selectedCompany?.partnerId || '').trim();
+
+    if (!partnerId) {
+      return NextResponse.json({ message: 'Worker profile not available for pricing.' }, { status: 404 });
+    }
+
     let userPricing = await UserPricing.findOne({ userId: currentUser._id });
     if (!userPricing || !hasValidPricingPlans(userPricing.plans)) {
       userPricing = await regenerateUserPricing({
         userId: currentUser._id,
-        city: userDoc.kyc?.city,
-        avgWeeklyIncome: userDoc.kyc?.avgWeeklyIncome
+        partnerId,
       });
     }
 

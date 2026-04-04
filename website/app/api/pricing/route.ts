@@ -17,14 +17,24 @@ export async function GET(request: NextRequest) {
     }
 
     await connectDB();
+
+    const companies = Array.isArray(currentUser.kyc?.companies) ? currentUser.kyc.companies : [];
+    const selectedCompany =
+      companies.find((company) => company.verified && company.partnerId) ||
+      companies.find((company) => company.partnerId) ||
+      null;
+
+    const partnerId = String(selectedCompany?.partnerId || '').trim();
+    if (!partnerId) {
+      return NextResponse.json({ message: 'Worker profile not available for pricing.' }, { status: 404 });
+    }
     
     let userPricing = await UserPricing.findOne({ userId: currentUser._id });
     if (!userPricing || !hasValidPricingPlans(userPricing.plans)) {
       try {
         userPricing = await regenerateUserPricing({
           userId: currentUser._id,
-          city: currentUser.kyc?.city,
-          avgWeeklyIncome: currentUser.kyc?.avgWeeklyIncome
+          partnerId,
         });
       } catch (_pricingErr: unknown) {
         return NextResponse.json({ message: 'Unable to fetch pricing. Try again.' }, { status: 503 });

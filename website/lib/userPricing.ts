@@ -1,19 +1,23 @@
 import UserPricing, { IPlan, IUserPricing } from '@/models/UserPricing';
 import { Types } from 'mongoose';
+import { getWorkerProfilePricingInputByPartnerId, WorkerProfilePricingInput } from '@/lib/workerProfile';
 
 type UserPricingDocument = NonNullable<Awaited<ReturnType<typeof UserPricing.findOne>>>;
 
 export type PlanType = 'basic' | 'standard' | 'premium';
 
 type GeneratePricingInput = {
+  partnerId: string;
+  company: string;
   city?: string;
-  avgWeeklyIncome?: number;
+  avgWeeklyIncome: number;
+  avgWorkingHours: number;
 };
 
-const PLAN_CONFIG: Array<{ planType: PlanType; sourceKey: 'economy_tier' | 'balanced_tier' | 'safety_tier'; coverageMultiplier: number }> = [
-  { planType: 'basic', sourceKey: 'economy_tier', coverageMultiplier: 0.5 },
-  { planType: 'standard', sourceKey: 'balanced_tier', coverageMultiplier: 1.0 },
-  { planType: 'premium', sourceKey: 'safety_tier', coverageMultiplier: 1.5 }
+const PLAN_CONFIG: Array<{ planType: PlanType; multiplier: number }> = [
+  { planType: 'basic', multiplier: 0.8 },
+  { planType: 'standard', multiplier: 1.0 },
+  { planType: 'premium', multiplier: 1.2 }
 ];
 
 export function hasValidPricingPlans(plans: unknown): plans is IPlan[] {
@@ -61,34 +65,21 @@ function toPlanAmount(value: unknown): number {
   return Math.round(parsed);
 }
 
-function resolveBenefitAmount(price: number, avgWeeklyIncome?: number, coverageMultiplier = 1): number {
-  const income = toPositiveNumber(avgWeeklyIncome);
-  if (income) {
-    return Math.round(income * coverageMultiplier);
-  }
-
-  // Fallback to price-linked coverage when income is unavailable.
-  return Math.round(price * 30 * coverageMultiplier);
+function resolveBenefitAmount(price: number): number {
+  return Math.round(price * 40);
 }
 
 function generateFallbackPlans(input: GeneratePricingInput): IPlan[] {
-  const income = toPositiveNumber(input.avgWeeklyIncome);
-  const basePrice = income
-    ? Math.max(80, Math.round(income * 0.01))
-    : 100;
+  const weeklyIncome = toPositiveNumber(input.avgWeeklyIncome) ?? 8000;
+  const weeklyHours = toPositiveNumber(input.avgWorkingHours) ?? 40;
+  const basePrice = Math.max(50, weeklyIncome / weeklyHours);
 
-  const fallbackByType: Record<PlanType, number> = {
-    basic: basePrice,
-    standard: Math.round(basePrice * 1.25),
-    premium: Math.round(basePrice * 1.6),
-  };
-
-  return PLAN_CONFIG.map(({ planType, coverageMultiplier }) => {
-    const price = fallbackByType[planType];
+  return PLAN_CONFIG.map(({ planType, multiplier }) => {
+    const price = Math.round(basePrice * multiplier);
     return {
       planType,
       price,
-      benefitAmount: resolveBenefitAmount(price, input.avgWeeklyIncome, coverageMultiplier),
+      benefitAmount: resolveBenefitAmount(price),
     };
   });
 }
@@ -99,44 +90,55 @@ export async function generatePlansFromBot(input: GeneratePricingInput): Promise
     throw new Error('BOT_API_URL is not configured');
   }
 
-  const city = String(input.city || '').trim();
-  const url = `${botBaseUrl}/premium?city=${encodeURIComponent(city)}`;
+  const url = `${botBaseUrl}/pricing`;
 
-  const aiRes = await fetch(url);
+  const aiRes = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      avgWeeklyIncome: input.avgWeeklyIncome,
+      avgWorkingHours: input.avgWorkingHours,
+      city: String(input.city || '').trim(),
+      company: String(input.company || '').trim(),
+      partnerId: input.partnerId,
+    }),
+  });
   if (!aiRes.ok) {
     throw new Error(`Pricing engine request failed with status ${aiRes.status}`);
   }
 
   const data = await aiRes.json();
-  const options = data?.weekly_premium_options || {};
 
-  return PLAN_CONFIG.map(({ planType, sourceKey, coverageMultiplier }) => {
-    const price = toPlanAmount(options?.[sourceKey]);
-    return {
-      planType,
-      price,
-      benefitAmount: resolveBenefitAmount(price, input.avgWeeklyIncome, coverageMultiplier)
-    };
-  });
+  if (Array.isArray(data?.plans)) {
+    return data.plans.map((item: any) => ({
+      planType: item.planType,
+      price: toPlanAmount(item.price),
+      benefitAmount: toPlanAmount(item.benefitAmount),
+    }));
+  }
+
+  throw new Error('Invalid pricing engine response format');
 }
 
 export async function regenerateUserPricing(params: {
   userId: Types.ObjectId;
-  city?: string;
-  avgWeeklyIncome?: number;
+  partnerId: string;
 }): Promise<UserPricingDocument> {
+  const workerProfile: WorkerProfilePricingInput | null =
+    await getWorkerProfilePricingInputByPartnerId(params.partnerId);
+
+  if (!workerProfile) {
+    throw new Error('Worker profile not found for pricing generation');
+  }
+
   let plans: IPlan[];
 
   try {
-    plans = await generatePlansFromBot({
-      city: params.city,
-      avgWeeklyIncome: params.avgWeeklyIncome
-    });
+    plans = await generatePlansFromBot(workerProfile);
   } catch {
-    plans = generateFallbackPlans({
-      city: params.city,
-      avgWeeklyIncome: params.avgWeeklyIncome
-    });
+    plans = generateFallbackPlans(workerProfile);
   }
 
   if (!hasValidPricingPlans(plans)) {

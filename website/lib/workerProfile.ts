@@ -10,6 +10,14 @@ type WorkerProfileInput = {
   avgWorkingHours?: unknown;
 };
 
+export type WorkerProfilePricingInput = {
+  partnerId: string;
+  company: string;
+  city: string;
+  avgWeeklyIncome: number;
+  avgWorkingHours: number;
+};
+
 function hashToUint32(input: string): number {
   let hash = 2166136261;
   for (let i = 0; i < input.length; i += 1) {
@@ -116,4 +124,36 @@ export async function ensureWorkerProfileForApprovedKyc(input: WorkerProfileInpu
     completionRate,
     rating,
   });
+}
+
+function toPricingNumber(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+export async function getWorkerProfilePricingInputByPartnerId(partnerId: string): Promise<WorkerProfilePricingInput | null> {
+  const normalizedPartnerId = String(partnerId || '').trim();
+  if (!normalizedPartnerId) {
+    return null;
+  }
+
+  const WorkerProfile = await getWorkerProfileModel();
+  const profile = await WorkerProfile.findOne({
+    $or: [{ partnerId: normalizedPartnerId }, { userId: normalizedPartnerId }],
+  }).lean();
+
+  if (!profile) {
+    return null;
+  }
+
+  return {
+    partnerId: normalizedPartnerId,
+    company: String(profile.company || '').trim() || 'Unknown Company',
+    city: String(profile.city || '').trim() || 'Unknown City',
+    avgWeeklyIncome: toPricingNumber(profile.avgWeeklyIncome, 8000),
+    avgWorkingHours: toPricingNumber(profile.avgWorkingHours, 40),
+  };
 }

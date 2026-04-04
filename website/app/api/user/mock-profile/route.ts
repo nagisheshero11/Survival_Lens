@@ -46,6 +46,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const avgWeeklyIncome = Number(
+      mockProfile.avgWeeklyIncome ??
+      ((typeof mockProfile.avgDailyIncome === 'number' ? mockProfile.avgDailyIncome : 0) * 7)
+    ) || 0;
+
+    const avgWorkingHours = Number(
+      mockProfile.avgWorkingHours ??
+      ((typeof mockProfile.workingHoursPerDay === 'number' ? mockProfile.workingHoursPerDay : 0) *
+        (typeof mockProfile.workingDaysPerWeek === 'number' ? mockProfile.workingDaysPerWeek : 7))
+    ) || 0;
+
     // Return the fetched Mock DB data cleanly
     return NextResponse.json({
       mockProfile: {
@@ -53,8 +64,8 @@ export async function GET(request: NextRequest) {
         partnerId: mockProfile.partnerId || partnerId,
         city: mockProfile.city,
         zone: mockProfile.zone,
-        avgWeeklyIncome: mockProfile.avgWeeklyIncome,
-        avgWorkingHours: mockProfile.avgWorkingHours,
+        avgWeeklyIncome: Math.round(avgWeeklyIncome),
+        avgWorkingHours: Math.round(avgWorkingHours),
         workingHoursPerDay: mockProfile.workingHoursPerDay,
         workingDaysPerWeek: mockProfile.workingDaysPerWeek,
         avgOrdersPerDay: mockProfile.avgOrdersPerDay,

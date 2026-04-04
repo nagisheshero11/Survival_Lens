@@ -386,6 +386,8 @@ export async function POST(request: NextRequest) {
 
     // Assign Dynamic Pricing Document exactly once when user first reaches approved.
     if (newStatus === 'approved') {
+      let resolvedPartnerId = '';
+
       try {
         const approvedCompanies = Array.isArray(finalCompanies)
           ? finalCompanies.filter((company: any) => !!company?.partnerId)
@@ -396,9 +398,10 @@ export async function POST(request: NextRequest) {
           null;
 
         if (selectedCompany?.partnerId) {
+          resolvedPartnerId = String(selectedCompany.partnerId);
           await ensureWorkerProfileForApprovedKyc({
             userId: String(currentUser._id),
-            partnerId: String(selectedCompany.partnerId),
+            partnerId: resolvedPartnerId,
             company: selectedCompany.company,
             city: finalKycState.city,
             zone: finalKycState.zone,
@@ -421,10 +424,13 @@ export async function POST(request: NextRequest) {
         const shouldGeneratePricing = !hasStoredPlans;
 
         if (shouldGeneratePricing) {
+          if (!resolvedPartnerId) {
+            throw new Error('Worker profile partnerId missing for pricing generation');
+          }
+
           await regenerateUserPricing({
             userId: currentUser._id,
-            city: finalKycState.city,
-            avgWeeklyIncome: finalKycState.avgWeeklyIncome
+            partnerId: resolvedPartnerId,
           });
         }
       } catch (err: unknown) {

@@ -20,13 +20,24 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Worker Profile not found" }, { status: 404 });
     }
 
+    const avgWeeklyIncome = Number(
+      profile.avgWeeklyIncome ??
+      ((typeof profile.avgDailyIncome === 'number' ? profile.avgDailyIncome : 0) * 7)
+    ) || 0;
+
+    const avgWorkingHours = Number(
+      profile.avgWorkingHours ??
+      ((typeof profile.workingHoursPerDay === 'number' ? profile.workingHoursPerDay : 0) *
+        (typeof profile.workingDaysPerWeek === 'number' ? profile.workingDaysPerWeek : 7))
+    ) || 0;
+
     const responseData = {
       company: profile.company,
       partnerId: profile.partnerId || profile.userId,
       city: profile.city,
       zone: profile.zone,
-      avgWeeklyIncome: profile.avgWeeklyIncome,
-      avgWorkingHours: profile.avgWorkingHours,
+      avgWeeklyIncome: Math.round(avgWeeklyIncome),
+      avgWorkingHours: Math.round(avgWorkingHours),
       workingHoursPerDay: profile.workingHoursPerDay,
       workingDaysPerWeek: profile.workingDaysPerWeek,
       avgOrdersPerDay: profile.avgOrdersPerDay,
