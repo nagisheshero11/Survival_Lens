@@ -52,6 +52,7 @@ export default function KycProcessPage() {
   const validation = useMemo(() => {
     const aadhaarDigits = kycData.aadhaar.replace(/\D/g, "");
     const panValue = kycData.pan.toUpperCase().trim();
+    const locationValue = kycData.location.trim();
     const ageValue = Number(kycData.age);
     const incomeValue = Number(kycData.avgWeeklyIncome);
     const hoursValue = Number(kycData.avgWorkingHours);
@@ -60,7 +61,7 @@ export default function KycProcessPage() {
       aadhaarOk: /^\d{12}$/.test(aadhaarDigits),
       panOk: /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panValue),
       ageOk: Number.isInteger(ageValue) && ageValue >= 18 && ageValue <= 99,
-      locationOk: Boolean(kycData.location),
+      locationOk: /^[A-Za-z0-9][A-Za-z0-9,./\-\s]{1,63}$/.test(locationValue),
       incomeOk: Number.isFinite(incomeValue) && incomeValue > 0,
       hoursOk: Number.isFinite(hoursValue) && hoursValue > 0 && hoursValue <= 99,
       categoryOk: Boolean(globalCategory),
@@ -365,15 +366,18 @@ export default function KycProcessPage() {
             </div>
             
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Geopolitical Location</label>
-              <select value={kycData.location} onChange={e => handleChange('location', e.target.value)} className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 transition-all outline-none appearance-none ${validation.locationOk ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`}>
-                <option value="">Select Zone...</option>
-                <option value="Metropolitan">Metropolitan</option>
-                <option value="Urban">Urban</option>
-                <option value="Semi-Urban">Semi-Urban</option>
-                <option value="Rural">Rural</option>
-              </select>
-              <p className={`mt-2 text-[11px] font-bold ${validation.locationOk ? 'text-slate-400' : 'text-red-500'}`}>Required: choose your operating zone.</p>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">City / Location</label>
+              <input
+                type="text"
+                value={kycData.location}
+                onChange={e => handleChange('location', e.target.value)}
+                maxLength={64}
+                placeholder="e.g. Hyderabad, Telangana"
+                className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none ${validation.locationOk || !kycData.location ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`}
+              />
+              <p className={`mt-2 text-[11px] font-bold ${validation.locationOk || !kycData.location ? 'text-slate-400' : 'text-red-500'}`}>
+                Required: enter a valid city/location using letters or numbers.
+              </p>
             </div>
 
             <div>

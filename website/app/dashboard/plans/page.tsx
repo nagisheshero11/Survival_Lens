@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { getKycData } from "@/(services)/kyc";
-import { getSubscription, selectPlan, paySubscription } from "@/(services)/subscription";
+import { getSubscription, paySubscription } from "@/(services)/subscription";
+import { getPricing, selectPricingPlan } from "@/(services)/pricing";
 
 type SubscriptionData = {
   planAmount: number;
@@ -22,12 +23,19 @@ type SubscriptionData = {
   startDate: string;
 };
 
+type PricingPlan = {
+  planType: "basic" | "standard" | "premium";
+  price: number;
+};
+
 export default function PlansPage() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [kycStatus, setKycStatus] = useState<string>("not_started");
   
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
+  const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
+  const [selectedPlanType, setSelectedPlanType] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -51,7 +59,7 @@ export default function PlansPage() {
     };
 
     initKyc();
-    fetchSubscription();
+    void Promise.all([fetchSubscription(), fetchPricing()]);
     setIsMounted(true);
   }, []);
 
@@ -68,7 +76,24 @@ export default function PlansPage() {
     }
   };
 
-  const handleSelectPlan = async (amount: number) => {
+  const fetchPricing = async () => {
+    try {
+      const data = await getPricing();
+      setPricingPlans(Array.isArray(data?.plans) ? data.plans : []);
+      setSelectedPlanType(data?.selectedPlan?.planType || null);
+    } catch (err) {
+      console.error(err);
+      setPricingPlans([]);
+      setSelectedPlanType(null);
+    }
+  };
+
+  const getPlanPrice = (planType: "basic" | "standard" | "premium", fallback: number) => {
+    const matched = pricingPlans.find((plan) => plan.planType === planType);
+    return typeof matched?.price === "number" ? matched.price : fallback;
+  };
+
+  const handleSelectPlan = async (planType: "basic" | "standard" | "premium") => {
     if (kycStatus !== 'approved') {
       toast.error('You must have an approved KYC to select a plan.');
       return;
@@ -76,11 +101,12 @@ export default function PlansPage() {
     
     setIsProcessing(true);
     try {
-      const data = await selectPlan(amount);
+      const data = await selectPricingPlan(planType);
       toast.success(`Successfully activated ${data.subscription.planName} plan!`);
-      await fetchSubscription();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to select plan');
+      await Promise.all([fetchSubscription(), fetchPricing()]);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to select plan';
+      toast.error(message);
     } finally {
       setIsProcessing(false);
     }
@@ -91,9 +117,10 @@ export default function PlansPage() {
     try {
       const data = await paySubscription();
       toast.success(`Payment successful! Ref: ${data.paymentRef}`);
-      await fetchSubscription();
-    } catch (err: any) {
-      toast.error(err.message || 'Payment failed');
+      await Promise.all([fetchSubscription(), fetchPricing()]);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Payment failed';
+      toast.error(message);
     } finally {
       setIsProcessing(false);
     }
@@ -103,7 +130,7 @@ export default function PlansPage() {
 
   if (!isMounted) return null;
 
-  let paymentInfo = { allowed: true, daysRemaining: 0, nextDate: null as Date | null };
+  const paymentInfo = { allowed: true, daysRemaining: 0, nextDate: null as Date | null };
   if (subscription && subscription.lastPaymentDate) {
     const lastDate = new Date(subscription.lastPaymentDate);
     const currentDate = new Date();
@@ -283,7 +310,7 @@ export default function PlansPage() {
                   Basic
                 </span>
                 <div className="flex flex-col gap-1 mb-2">
-                  <h2 className="text-4xl font-black text-slate-900 tracking-tight">₹90</h2>
+                  <h2 className="text-4xl font-black text-slate-900 tracking-tight">₹{getPlanPrice('basic', 90)}</h2>
                   <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-none">/ per week</span>
                 </div>
                 <p className="text-xs text-slate-500 font-bold leading-relaxed mb-6 h-10 mt-3">
@@ -305,7 +332,7 @@ export default function PlansPage() {
               </div>
               
               <button 
-                  onClick={() => (isKycApproved ? handleSelectPlan(90) : router.push('/dashboard/profile/kyc'))}
+                  onClick={() => (isKycApproved ? handleSelectPlan('basic') : router.push('/dashboard/profile/kyc'))}
                   disabled={isProcessing}
                   className={`w-full border font-black tracking-tight py-4 rounded-2xl transition-all shadow-sm flex justify-center items-center gap-2 ${
                    isKycApproved
@@ -313,13 +340,19 @@ export default function PlansPage() {
                     : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200/70'
                   } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                  {isProcessing ? 'Processing' : isKycApproved ? 'Select Basic' : 'Complete KYC to Unlock'}
+                  {isProcessing
+                    ? 'Processing'
+                    : isKycApproved
+                      ? selectedPlanType === 'basic'
+                        ? 'Selected'
+                        : 'Select Basic'
+                      : 'Complete KYC to Unlock'}
               </button>
             </motion.div>
 
             {/* STANDARD TIER (₹110) */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-blue-600 rounded-[2.5rem] p-8 lg:p-10 flex flex-col relative shadow-[0_20px_50px_rgba(37,99,235,0.2)] h-full z-10 transform lg:-translate-y-4 overflow-hidden outline-none">
-              <div className="absolute inset-0 bg-gradient-to-b from-blue-500/30 to-transparent opacity-50 pointer-events-none" />
+              <div className="absolute inset-0 bg-linear-to-b from-blue-500/30 to-transparent opacity-50 pointer-events-none" />
               <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] uppercase font-black tracking-[0.2em] px-5 py-2 rounded-full shadow-[0_0_15px_rgba(0,0,0,0.3)] whitespace-nowrap z-20">
                 Recommended
               </div>
@@ -329,7 +362,7 @@ export default function PlansPage() {
                   Standard
                 </span>
                 <div className="flex flex-col gap-1 mb-2">
-                  <h2 className="text-5xl font-black text-white tracking-tight">₹110</h2>
+                  <h2 className="text-5xl font-black text-white tracking-tight">₹{getPlanPrice('standard', 110)}</h2>
                   <span className="text-[11px] font-bold text-blue-200 uppercase tracking-widest leading-none">/ per week</span>
                 </div>
                 <p className="text-xs text-blue-100 font-bold leading-relaxed mb-6 h-10 mt-3">
@@ -355,7 +388,7 @@ export default function PlansPage() {
               </div>
 
               <button 
-                onClick={() => (isKycApproved ? handleSelectPlan(110) : router.push('/dashboard/profile/kyc'))}
+                onClick={() => (isKycApproved ? handleSelectPlan('standard') : router.push('/dashboard/profile/kyc'))}
                 disabled={isProcessing}
                 className={`w-full font-black tracking-tight py-4 rounded-2xl shadow-xl transition-colors text-[14px] relative z-10 flex justify-center items-center gap-2 group ${
                   isKycApproved
@@ -363,7 +396,13 @@ export default function PlansPage() {
                     : 'bg-amber-100 hover:bg-amber-50 text-amber-800 border border-amber-200/70'
                 } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                {isProcessing ? 'Processing' : isKycApproved ? 'Select Standard' : 'Complete KYC to Unlock'}
+                {isProcessing
+                  ? 'Processing'
+                  : isKycApproved
+                    ? selectedPlanType === 'standard'
+                      ? 'Selected'
+                      : 'Select Standard'
+                    : 'Complete KYC to Unlock'}
               </button>
             </motion.div>
 
@@ -378,7 +417,7 @@ export default function PlansPage() {
                   Premium
                 </span>
                 <div className="flex flex-col gap-1 mb-2">
-                  <h2 className="text-5xl font-black text-white tracking-tight">₹150</h2>
+                  <h2 className="text-5xl font-black text-white tracking-tight">₹{getPlanPrice('premium', 150)}</h2>
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest leading-none">/ per week</span>
                 </div>
                 <p className="text-xs text-slate-400 font-bold leading-relaxed mb-6 h-10 mt-3">
@@ -404,7 +443,7 @@ export default function PlansPage() {
               </div>
               
               <button 
-                onClick={() => (isKycApproved ? handleSelectPlan(150) : router.push('/dashboard/profile/kyc'))}
+                onClick={() => (isKycApproved ? handleSelectPlan('premium') : router.push('/dashboard/profile/kyc'))}
                 disabled={isProcessing}
                 className={`w-full mt-auto border font-black tracking-tight py-4 rounded-2xl shadow-lg transition-all relative z-10 text-[14px] flex justify-center items-center gap-2 ${
                   isKycApproved
@@ -412,7 +451,13 @@ export default function PlansPage() {
                     : 'bg-amber-50 hover:bg-amber-100 border-amber-200/70 text-amber-800'
                 } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                {isProcessing ? 'Processing' : isKycApproved ? 'Select Premium' : 'Complete KYC to Unlock'}
+                {isProcessing
+                  ? 'Processing'
+                  : isKycApproved
+                    ? selectedPlanType === 'premium'
+                      ? 'Selected'
+                      : 'Select Premium'
+                    : 'Complete KYC to Unlock'}
               </button>
             </motion.div>
 

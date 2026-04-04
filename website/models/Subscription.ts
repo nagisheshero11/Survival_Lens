@@ -22,8 +22,7 @@ const subscriptionSchema = new Schema<ISubscription>({
   },
   planAmount: {
     type: Number,
-    required: true,
-    enum: [90, 110, 150]
+    required: true
   },
   planName: {
     type: String,
