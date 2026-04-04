@@ -23,6 +23,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: "Wallet not found for this user" }, { status: 404 });
     }
 
+    // One-time uplift for legacy demo wallets created with old seed amount.
+    if (wallet.balance < 3000 && Array.isArray(wallet.transactions) && wallet.transactions.length === 0) {
+      wallet.balance = 3000;
+      await wallet.save();
+    }
+
     // Sort transactions by createdAt descending for better UI presentation
     const sortedTransactions = [...wallet.transactions].sort((a, b) => 
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()

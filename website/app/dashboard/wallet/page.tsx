@@ -152,6 +152,13 @@ export default function WalletPage() {
         </div>
       ) : (
         <div className="relative z-10 grid grid-cols-1 gap-8">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-5 py-4 text-amber-900 shadow-sm">
+            <p className="text-[10px] uppercase tracking-[0.18em] font-black text-amber-700 mb-1">Mock Wallet Credit</p>
+            <p className="text-sm font-semibold leading-relaxed">
+              This wallet balance is demo credit for mock/testing flows and does not represent real withdrawable funds.
+            </p>
+          </div>
+
           {/* ── BALANCE CARD ── */}
           <div className="bg-slate-900 rounded-[2rem] p-8 lg:p-10 shadow-[0_20px_50px_rgba(15,23,42,0.15)] text-white relative overflow-hidden group max-w-xl">
             <div className="absolute inset-0 bg-gradient-to-bl from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />

@@ -3,7 +3,10 @@ import connectCompanyDB from '@/lib/companyDb';
 
 export interface IWorkerProfile extends Document {
   userId: string;
+  partnerId?: string;
   company: string;
+  avgWeeklyIncome?: number;
+  avgWorkingHours?: number;
   workingHoursPerDay: number;
   workingDaysPerWeek: number;
   avgOrdersPerDay: number;
@@ -19,7 +22,10 @@ export interface IWorkerProfile extends Document {
 
 const workerProfileSchema = new Schema<IWorkerProfile>({
   userId: { type: String, required: true, index: true },
+  partnerId: { type: String, index: true },
   company: { type: String, required: true },
+  avgWeeklyIncome: { type: Number },
+  avgWorkingHours: { type: Number },
   workingHoursPerDay: { type: Number },
   workingDaysPerWeek: { type: Number },
   avgOrdersPerDay: { type: Number },

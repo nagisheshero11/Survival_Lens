@@ -12,7 +12,9 @@ export async function GET(req: NextRequest) {
     }
 
     const WorkerProfile = await getWorkerProfileModel();
-    const profile = await WorkerProfile.findOne({ userId });
+    const profile = await WorkerProfile.findOne({
+      $or: [{ partnerId: userId }, { userId }]
+    });
 
     if (!profile) {
       return NextResponse.json({ error: "Worker Profile not found" }, { status: 404 });
@@ -20,8 +22,11 @@ export async function GET(req: NextRequest) {
 
     const responseData = {
       company: profile.company,
+      partnerId: profile.partnerId || profile.userId,
       city: profile.city,
       zone: profile.zone,
+      avgWeeklyIncome: profile.avgWeeklyIncome,
+      avgWorkingHours: profile.avgWorkingHours,
       workingHoursPerDay: profile.workingHoursPerDay,
       workingDaysPerWeek: profile.workingDaysPerWeek,
       avgOrdersPerDay: profile.avgOrdersPerDay,

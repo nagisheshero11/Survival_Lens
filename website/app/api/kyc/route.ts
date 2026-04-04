@@ -5,6 +5,7 @@ import Wallet from '@/models/Wallet';
 import UserPricing from '@/models/UserPricing';
 import connectDB from '@/lib/db';
 import { regenerateUserPricing } from '@/lib/userPricing';
+import { ensureWorkerProfileForApprovedKyc } from '@/lib/workerProfile';
 
 const INVALID_IMAGE_PLACEHOLDERS = new Set([
   'uploaded_file.png',
@@ -375,7 +376,7 @@ export async function POST(request: NextRequest) {
       try {
         await Wallet.findOneAndUpdate(
           { userId: currentUser._id },
-          { $setOnInsert: { userId: currentUser._id, balance: 300, transactions: [] } },
+          { $setOnInsert: { userId: currentUser._id, balance: 3000, transactions: [] } },
           { upsert: true, new: true }
         );
       } catch (err: any) {
@@ -385,6 +386,31 @@ export async function POST(request: NextRequest) {
 
     // Assign Dynamic Pricing Document exactly once when user first reaches approved.
     if (newStatus === 'approved') {
+      try {
+        const approvedCompanies = Array.isArray(finalCompanies)
+          ? finalCompanies.filter((company: any) => !!company?.partnerId)
+          : [];
+        const selectedCompany =
+          approvedCompanies.find((company: any) => company.verified) ||
+          approvedCompanies[0] ||
+          null;
+
+        if (selectedCompany?.partnerId) {
+          await ensureWorkerProfileForApprovedKyc({
+            userId: String(currentUser._id),
+            partnerId: String(selectedCompany.partnerId),
+            company: selectedCompany.company,
+            city: finalKycState.city,
+            zone: finalKycState.zone,
+            avgWeeklyIncome: finalKycState.avgWeeklyIncome,
+            avgWorkingHours: finalKycState.avgWorkingHours,
+          });
+        }
+      } catch (err: unknown) {
+        const workerProfileError = err instanceof Error ? err.message : String(err);
+        console.error('Failed to setup worker profile:', workerProfileError);
+      }
+
       try {
         const existingPricing = await UserPricing.findOne({ userId: currentUser._id });
         const hasStoredPlans =

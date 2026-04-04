@@ -33,9 +33,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Connect to the Mock Database to fetch real-time worker metrics
+    // Fetch generated worker metrics from company DB.
     const WorkerProfile = await getWorkerProfileModel();
-    const mockProfile = await WorkerProfile.findOne({ userId: partnerId });
+    const mockProfile = await WorkerProfile.findOne({
+      $or: [{ partnerId }, { userId: partnerId }]
+    });
 
     if (!mockProfile) {
       return NextResponse.json(
@@ -48,8 +50,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       mockProfile: {
         company: mockProfile.company || companyName,
+        partnerId: mockProfile.partnerId || partnerId,
         city: mockProfile.city,
         zone: mockProfile.zone,
+        avgWeeklyIncome: mockProfile.avgWeeklyIncome,
+        avgWorkingHours: mockProfile.avgWorkingHours,
         workingHoursPerDay: mockProfile.workingHoursPerDay,
         workingDaysPerWeek: mockProfile.workingDaysPerWeek,
         avgOrdersPerDay: mockProfile.avgOrdersPerDay,

@@ -47,7 +47,7 @@ const walletSchema = new Schema<IWallet>({
   },
   balance: {
     type: Number,
-    default: 300,
+    default: 3000,
   },
   transactions: {
     type: [transactionSchema],
