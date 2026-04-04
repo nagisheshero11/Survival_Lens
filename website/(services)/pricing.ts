@@ -19,18 +19,23 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 export async function getPricing(): Promise<PricingResponse> {
-  const res = await fetch(`${API_URL}/api/pricing`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-    credentials: "include",
-  });
+  try {
+    const res = await fetch(`${API_URL}/api/pricing`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+      credentials: "include",
+    });
 
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || data.error || "Failed to fetch pricing");
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || data.error || "Unable to fetch pricing. Try again.");
+    }
+
+    return data as PricingResponse;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to fetch pricing. Try again.";
+    throw new Error(message || "Unable to fetch pricing. Try again.");
   }
-
-  return data as PricingResponse;
 }
 
 export async function selectPricingPlan(planType: "basic" | "standard" | "premium") {

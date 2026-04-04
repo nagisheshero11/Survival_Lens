@@ -91,8 +91,7 @@ export default function PlansPage() {
       setIsLoading(true);
       const data = await getSubscription();
       setSubscription(data);
-    } catch (err) {
-      console.error(err);
+    } catch (_err) {
       setSubscription(null);
     } finally {
       setIsLoading(false);
@@ -106,8 +105,7 @@ export default function PlansPage() {
       setPricingPlans(plans);
       setSelectedPlanType((data?.selectedPlan?.planType as PlanType) || null);
       setPricingError("");
-    } catch (err) {
-      console.error(err);
+    } catch (_err) {
       setPricingPlans([]);
       setSelectedPlanType(null);
       setPricingError("Unable to fetch pricing. Try again.");

@@ -71,6 +71,28 @@ function resolveBenefitAmount(price: number, avgWeeklyIncome?: number, coverageM
   return Math.round(price * 30 * coverageMultiplier);
 }
 
+function generateFallbackPlans(input: GeneratePricingInput): IPlan[] {
+  const income = toPositiveNumber(input.avgWeeklyIncome);
+  const basePrice = income
+    ? Math.max(80, Math.round(income * 0.01))
+    : 100;
+
+  const fallbackByType: Record<PlanType, number> = {
+    basic: basePrice,
+    standard: Math.round(basePrice * 1.25),
+    premium: Math.round(basePrice * 1.6),
+  };
+
+  return PLAN_CONFIG.map(({ planType, coverageMultiplier }) => {
+    const price = fallbackByType[planType];
+    return {
+      planType,
+      price,
+      benefitAmount: resolveBenefitAmount(price, input.avgWeeklyIncome, coverageMultiplier),
+    };
+  });
+}
+
 export async function generatePlansFromBot(input: GeneratePricingInput): Promise<IPlan[]> {
   const botBaseUrl = (process.env.BOT_API_URL || '').replace(/\/$/, '');
   if (!botBaseUrl) {
@@ -103,10 +125,19 @@ export async function regenerateUserPricing(params: {
   city?: string;
   avgWeeklyIncome?: number;
 }): Promise<UserPricingDocument> {
-  const plans = await generatePlansFromBot({
-    city: params.city,
-    avgWeeklyIncome: params.avgWeeklyIncome
-  });
+  let plans: IPlan[];
+
+  try {
+    plans = await generatePlansFromBot({
+      city: params.city,
+      avgWeeklyIncome: params.avgWeeklyIncome
+    });
+  } catch {
+    plans = generateFallbackPlans({
+      city: params.city,
+      avgWeeklyIncome: params.avgWeeklyIncome
+    });
+  }
 
   if (!hasValidPricingPlans(plans)) {
     throw new Error('Pricing engine returned invalid plans');

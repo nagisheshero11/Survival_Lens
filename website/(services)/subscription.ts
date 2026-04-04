@@ -12,9 +12,13 @@ export const getSubscription = async () => {
 
   const data = await res.json();
   if (!res.ok) {
-    if (res.status === 404) return null;
     throw new Error(data.message || data.error || 'Failed to fetch subscription');
   }
+
+  if (data && typeof data === 'object' && 'subscription' in data) {
+    return data.subscription;
+  }
+
   return data;
 };
 

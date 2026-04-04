@@ -26,9 +26,8 @@ export async function GET(request: NextRequest) {
           city: currentUser.kyc?.city,
           avgWeeklyIncome: currentUser.kyc?.avgWeeklyIncome
         });
-      } catch (pricingErr: unknown) {
-        const message = pricingErr instanceof Error ? pricingErr.message : 'Unable to generate pricing';
-        return NextResponse.json({ message }, { status: 503 });
+      } catch (_pricingErr: unknown) {
+        return NextResponse.json({ message: 'Unable to fetch pricing. Try again.' }, { status: 503 });
       }
     }
 

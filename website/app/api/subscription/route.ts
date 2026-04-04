@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const subscription = await Subscription.findOne({ userId: currentUser._id });
     
     if (!subscription) {
-      return NextResponse.json({ message: "Subscription not found" }, { status: 404 });
+      return NextResponse.json({ subscription: null }, { status: 200 });
     }
 
     // Dynamic Due Payments Calculation (Weekly Logic)
