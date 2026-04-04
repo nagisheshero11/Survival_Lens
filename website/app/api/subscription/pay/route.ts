@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser } from '@/middleware/auth';
 import Subscription from '@/models/Subscription';
+import UserPricing from '@/models/UserPricing';
 import connectDB from '@/lib/db';
 import { POST as premiumPaymentAPI } from '@/app/api/payments/premium/route';
 import { cookies } from 'next/headers';
@@ -39,15 +40,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Determine amount to charge
-    const chargeAmount = subscription.planAmount;
+    const userPricing = await UserPricing.findOne({ userId: currentUser._id });
+    const selectedPlanPrice = userPricing?.selectedPlan?.price;
+    const chargeAmount =
+      typeof selectedPlanPrice === 'number' && selectedPlanPrice > 0
+        ? selectedPlanPrice
+        : subscription.planAmount;
+
+    if (typeof chargeAmount !== 'number' || chargeAmount <= 0) {
+      return NextResponse.json({ message: "Invalid selected plan pricing" }, { status: 400 });
+    }
 
     // We must pass authorization. Cookies are a safe bet if using the web app, but we also check headers.
     const authHeader = request.headers.get('authorization') || '';
     const cookieStore = await cookies();
     const tokenCookie = cookieStore.get('token')?.value || '';
 
-    let headers: any = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json'
     };
 
@@ -106,7 +115,7 @@ export async function POST(request: NextRequest) {
       }
     }, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Subscription Pay Error:', error);
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }

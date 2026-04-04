@@ -307,14 +307,14 @@ export default function KycProcessPage() {
             </div>
             
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Geopolitical Location</label>
-              <select value={kycData.location} onChange={e => handleChange('location', e.target.value)} className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 transition-all outline-none appearance-none">
-                <option value="">Select Zone...</option>
-                <option value="Metropolitan">Metropolitan</option>
-                <option value="Urban">Urban</option>
-                <option value="Semi-Urban">Semi-Urban</option>
-                <option value="Rural">Rural</option>
-              </select>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Location</label>
+              <input
+                type="text"
+                value={kycData.location}
+                onChange={e => handleChange('location', e.target.value)}
+                placeholder="Enter your city or location"
+                className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none"
+              />
             </div>
 
             <div>
