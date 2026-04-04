@@ -20,6 +20,16 @@ function getExtension(fileName: string, mimeType: string): string {
   return extFromMime || "jpg";
 }
 
+function isReadOnlyFsError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: string }).code;
+  return code === "ENOENT" || code === "EROFS" || code === "EPERM";
+}
+
+function toDataUrl(bytes: Buffer, mimeType: string): string {
+  return `data:${mimeType};base64,${bytes.toString("base64")}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const authResult = await authenticateUser(request);
@@ -63,16 +73,25 @@ export async function POST(request: NextRequest) {
     const ext = getExtension(file.name, file.type);
     const uniqueName = `${field}_${Date.now()}_${randomUUID().slice(0, 8)}.${ext}`;
 
+    const bytes = Buffer.from(await file.arrayBuffer());
     const relativeDir = path.join("uploads", "kyc", userId);
     const absoluteDir = path.join(process.cwd(), "public", relativeDir);
-    await fs.mkdir(absoluteDir, { recursive: true });
-
     const absolutePath = path.join(absoluteDir, uniqueName);
-    const bytes = await file.arrayBuffer();
-    await fs.writeFile(absolutePath, Buffer.from(bytes));
 
-    const url = `/${path.join(relativeDir, uniqueName).replace(/\\/g, "/")}`;
-    return NextResponse.json({ url }, { status: 200 });
+    try {
+      await fs.mkdir(absoluteDir, { recursive: true });
+      await fs.writeFile(absolutePath, bytes);
+      const url = `/${path.join(relativeDir, uniqueName).replace(/\\/g, "/")}`;
+      return NextResponse.json({ url }, { status: 200 });
+    } catch (writeErr) {
+      if (!isReadOnlyFsError(writeErr)) {
+        throw writeErr;
+      }
+
+      // Serverless platforms can have read-only deployment filesystems.
+      // Fall back to an inline data URL so upload still works without disk writes.
+      return NextResponse.json({ url: toDataUrl(bytes, file.type) }, { status: 200 });
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Upload failed";
     return NextResponse.json({ message }, { status: 500 });
