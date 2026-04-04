@@ -12,6 +12,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { getKycData } from "@/(services)/kyc";
 import { getSubscription, paySubscription } from "@/(services)/subscription";
 import { getPricing, selectPricingPlan } from "@/(services)/pricing";
+import { getScopedLocalStorageItem, setScopedLocalStorageItem } from "@/lib/clientStorage";
 
 type SubscriptionData = {
   planAmount: number;
@@ -45,7 +46,7 @@ export default function PlansPage() {
   useEffect(() => {
     const initKyc = async () => {
       // Fallback first (visual speed)
-      const savedKyc = localStorage.getItem("survivalLensKyc");
+      const savedKyc = getScopedLocalStorageItem("survivalLensKyc");
       if (savedKyc) {
         try {
           const kycData = JSON.parse(savedKyc);
@@ -57,7 +58,7 @@ export default function PlansPage() {
       try {
         const kycData = await getKycData();
         setKycStatus(kycData.status);
-        localStorage.setItem("survivalLensKyc", JSON.stringify(kycData));
+        setScopedLocalStorageItem("survivalLensKyc", JSON.stringify(kycData));
       } catch (err) {}
     };
 

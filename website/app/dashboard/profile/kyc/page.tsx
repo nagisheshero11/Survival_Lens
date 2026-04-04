@@ -26,7 +26,9 @@ const COMPANY_CATEGORY_MAP: Record<string, string[]> = {
 
 const ALLOWED_CATEGORIES = Object.keys(COMPANY_CATEGORY_MAP);
 
-import { getKycData, saveKycData, calculateKycCompletion, IKycCompany } from "../../../../(services)/kyc";
+import { getKycData, saveKycData, calculateKycCompletion, IKycCompany, uploadKycDocument } from "../../../../(services)/kyc";
+import { withCacheBust } from "@/lib/avatar";
+import { getScopedLocalStorageItem, setScopedLocalStorageItem } from "@/lib/clientStorage";
 
 export default function KycProcessPage() {
   const router = useRouter();
@@ -48,6 +50,8 @@ export default function KycProcessPage() {
 
   const [companies, setCompanies] = useState<IKycCompany[]>([]);
   const [globalCategory, setGlobalCategory] = useState<string>("");
+  const [isPhotoUploading, setIsPhotoUploading] = useState(false);
+  const [uploadingCompanyId, setUploadingCompanyId] = useState<string | null>(null);
 
   const validation = useMemo(() => {
     const aadhaarDigits = kycData.aadhaar.replace(/\D/g, "");
@@ -97,7 +101,7 @@ export default function KycProcessPage() {
       // Prioritize API data directly securely mapping legacy setups natively mapped into `parsed`
       let parsed = apiData;
       if (!parsed) {
-        const saved = localStorage.getItem("survivalLensKyc");
+        const saved = getScopedLocalStorageItem("survivalLensKyc");
         if (saved) {
            try { parsed = JSON.parse(saved); } catch (e) {}
         }
@@ -217,7 +221,7 @@ export default function KycProcessPage() {
     };
     
     // Save locally securely mapped identically against POST schema
-    localStorage.setItem("survivalLensKyc", JSON.stringify(payloadToSave));
+    setScopedLocalStorageItem("survivalLensKyc", JSON.stringify(payloadToSave));
     
     try {
       await saveKycData({
@@ -273,12 +277,34 @@ export default function KycProcessPage() {
     setCompanies(prev => prev.length > 1 ? prev.filter(c => c.id !== id) : prev);
   };
 
-  const handleGlobalMockUpload = (field: "photo") => {
-    setKycData(prev => ({ ...prev, [field]: "uploaded_file.png" }));
+  const handleProfilePhotoUpload = async (file: File | null) => {
+    if (!file) return;
+
+    setIsPhotoUploading(true);
+    try {
+      const result = await uploadKycDocument(file, "photo");
+      setKycData((prev) => ({ ...prev, photo: withCacheBust(result.url) }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to upload profile photo";
+      alert(message);
+    } finally {
+      setIsPhotoUploading(false);
+    }
   };
 
-  const handleCompanyMockUpload = (id: string) => {
-    updateCompany(id, "dashboardScreenshot", "screenshot_secured.png");
+  const handleCompanyScreenshotUpload = async (id: string, file: File | null) => {
+    if (!file) return;
+
+    setUploadingCompanyId(id);
+    try {
+      const result = await uploadKycDocument(file, "dashboardScreenshot");
+      updateCompany(id, "dashboardScreenshot", withCacheBust(result.url));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to upload screenshot";
+      alert(message);
+    } finally {
+      setUploadingCompanyId(null);
+    }
   };
 
   if (!isMounted) return null;
@@ -405,9 +431,25 @@ export default function KycProcessPage() {
 
             <div className="md:col-span-2 border-t border-slate-100 pt-8 mt-2">
                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Live Photo Evidence</label>
-               <button type="button" onClick={() => handleGlobalMockUpload('photo')} className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight ${kycData.photo ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
-                 {kycData.photo ? <><CheckCircle2 size={18} /> Photographic ID Secured</> : <><UploadCloud size={18} /> Upload Authentic Photo</>}
-               </button>
+               <label className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight cursor-pointer ${kycData.photo ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
+                 <input
+                   type="file"
+                   accept="image/png,image/jpeg,image/webp"
+                   className="hidden"
+                   onChange={(e) => {
+                     const file = e.target.files?.[0] || null;
+                     void handleProfilePhotoUpload(file);
+                     e.currentTarget.value = "";
+                   }}
+                 />
+                 {isPhotoUploading ? (
+                   <><Loader2 size={18} className="animate-spin" /> Uploading photo...</>
+                 ) : kycData.photo ? (
+                   <><CheckCircle2 size={18} /> Photographic ID Secured</>
+                 ) : (
+                   <><UploadCloud size={18} /> Upload Authentic Photo</>
+                 )}
+               </label>
               <p className={`mt-2 text-[11px] font-bold ${validation.photoOk ? 'text-slate-400' : 'text-red-500'}`}>Required: photo evidence must be attached.</p>
             </div>
           </div>
@@ -468,9 +510,25 @@ export default function KycProcessPage() {
 
                   <div className="md:col-span-2 pt-2">
                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Live Dashboard Evidence</label>
-                     <button type="button" onClick={() => handleCompanyMockUpload(company.id)} className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight ${company.dashboardScreenshot ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
-                       {company.dashboardScreenshot ? <><CheckCircle2 size={18} /> Earnings Screenshot Secured</> : <><UploadCloud size={18} /> Upload Authentic Gig History Proof</>}
-                     </button>
+                     <label className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight cursor-pointer ${company.dashboardScreenshot ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
+                       <input
+                         type="file"
+                         accept="image/png,image/jpeg,image/webp"
+                         className="hidden"
+                         onChange={(e) => {
+                           const file = e.target.files?.[0] || null;
+                           void handleCompanyScreenshotUpload(company.id, file);
+                           e.currentTarget.value = "";
+                         }}
+                       />
+                       {uploadingCompanyId === company.id ? (
+                         <><Loader2 size={18} className="animate-spin" /> Uploading screenshot...</>
+                       ) : company.dashboardScreenshot ? (
+                         <><CheckCircle2 size={18} /> Earnings Screenshot Secured</>
+                       ) : (
+                         <><UploadCloud size={18} /> Upload Authentic Gig History Proof</>
+                       )}
+                     </label>
                     <p className={`mt-2 text-[11px] font-bold ${company.dashboardScreenshot ? 'text-slate-400' : 'text-red-500'}`}>Required: attach dashboard evidence for this company.</p>
                   </div>
                 </div>

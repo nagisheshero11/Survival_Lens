@@ -6,6 +6,25 @@ import UserPricing from '@/models/UserPricing';
 import connectDB from '@/lib/db';
 import { regenerateUserPricing } from '@/lib/userPricing';
 
+const INVALID_IMAGE_PLACEHOLDERS = new Set([
+  'uploaded_file.png',
+  'screenshot_secured.png'
+]);
+
+function isValidImageReference(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+
+  const normalized = value.trim();
+  if (!normalized || INVALID_IMAGE_PLACEHOLDERS.has(normalized)) return false;
+
+  return (
+    normalized.startsWith('/uploads/kyc/') ||
+    normalized.startsWith('http://') ||
+    normalized.startsWith('https://') ||
+    normalized.startsWith('data:image/')
+  );
+}
+
 export async function GET(request: NextRequest) {
   try {
     const authResult = await authenticateUser(request);
@@ -51,6 +70,10 @@ export async function POST(request: NextRequest) {
     if (rawBody.company !== undefined) {
       return NextResponse.json({ message: "Legacy 'company' field is deprecated. Use 'companies' array natively." }, { status: 400 });
     }
+
+    if (rawBody.photo !== undefined && !isValidImageReference(rawBody.photo)) {
+      return NextResponse.json({ message: 'Invalid profile photo reference' }, { status: 400 });
+    }
     
     // Accept any subset of scalar KYC fields
     const configScalarFields = [
@@ -82,6 +105,14 @@ export async function POST(request: NextRequest) {
         const allowedComps = COMPANY_CATEGORY_MAP[incoming.category];
         if (!allowedComps || !allowedComps.includes(incoming.company)) {
           return NextResponse.json({ message: `Invalid company '${incoming.company}' for category '${incoming.category}'` }, { status: 400 });
+        }
+
+        if (
+          incoming.dashboardScreenshot !== undefined &&
+          incoming.dashboardScreenshot !== '' &&
+          !isValidImageReference(incoming.dashboardScreenshot)
+        ) {
+          return NextResponse.json({ message: 'Invalid dashboard screenshot reference' }, { status: 400 });
         }
         
         const existingIndex = existingCompanies.findIndex((c: any) => c.company === incoming.company);

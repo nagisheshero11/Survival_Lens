@@ -13,6 +13,8 @@ import {
   FileText,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { withCacheBust } from "@/lib/avatar";
+import { getScopedLocalStorageItem } from "@/lib/clientStorage";
 
 const NAV_ITEMS = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
@@ -49,7 +51,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       }
     }
 
-    const savedAvatar = localStorage.getItem("survivalLensAvatar");
+    const savedAvatar = getScopedLocalStorageItem("survivalLensAvatar");
     if (savedAvatar) {
       setAvatarUrl(savedAvatar);
     }
@@ -74,7 +76,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           setDisplayEmail(data.user.email.trim());
         }
         if (data?.user?.kyc?.photo?.trim()) {
-          setAvatarUrl(data.user.kyc.photo);
+          setAvatarUrl(withCacheBust(data.user.kyc.photo, data.user.kyc.updatedAt));
         }
       } catch {
         // Keep local fallback values if the API is unavailable.

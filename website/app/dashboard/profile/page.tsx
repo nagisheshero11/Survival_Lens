@@ -14,6 +14,8 @@ import {
   ShieldHalf
 } from "lucide-react";
 import { getKycData, calculateKycCompletion } from "../../../(services)/kyc";
+import { withCacheBust } from "@/lib/avatar";
+import { getScopedLocalStorageItem } from "@/lib/clientStorage";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -37,6 +39,11 @@ export default function ProfilePage() {
     const loadProfileData = async () => {
       try {
         const token = localStorage.getItem("token");
+
+        const savedAvatar = getScopedLocalStorageItem("survivalLensAvatar");
+        if (savedAvatar) {
+          setProfile((prev) => ({ ...prev, avatarUrl: savedAvatar }));
+        }
         
         // Fetch User Identity Authenticity 
         const meRes = await fetch("/api/auth/me", {
@@ -56,18 +63,20 @@ export default function ProfilePage() {
                emailVerified: Boolean(authData.user.email),
                mobileVerified: Boolean(authData.user.mobile)
             }));
-          }
-        }
 
-        const savedAvatar = localStorage.getItem("survivalLensAvatar");
-        if (savedAvatar) {
-           setProfile(prev => ({ ...prev, avatarUrl: savedAvatar }));
+            if (authData.user.kyc?.photo?.trim()) {
+              setProfile((prev) => ({
+                ...prev,
+                avatarUrl: withCacheBust(authData.user.kyc.photo, authData.user.kyc.updatedAt),
+              }));
+            }
+          }
         }
 
         // Fetch KYC Dependencies securely
         let kycDataResponse = await getKycData();
         if (!kycDataResponse) {
-          const saved = localStorage.getItem("survivalLensKyc");
+          const saved = getScopedLocalStorageItem("survivalLensKyc");
           if (saved) {
              try { kycDataResponse = JSON.parse(saved); } catch (e) {}
           }
@@ -81,7 +90,7 @@ export default function ProfilePage() {
         }
       } catch (e) {
         // Fallback
-        const saved = localStorage.getItem("survivalLensKyc");
+        const saved = getScopedLocalStorageItem("survivalLensKyc");
         if (saved) {
            try {
              const data = JSON.parse(saved);

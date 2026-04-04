@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Wallet, Loader2, AlertCircle, ArrowUpRight, ArrowDownLeft, Receipt } from "lucide-react";
 import { getWallet } from "@/(services)/wallet";
 import { useRouter } from "next/navigation";
+import { getScopedLocalStorageItem } from "@/lib/clientStorage";
 
 export default function WalletPage() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function WalletPage() {
   useEffect(() => {
     const fetchWalletData = async () => {
       // Use local KYC data to determine whether wallet should be gated.
-      const savedKyc = localStorage.getItem("survivalLensKyc");
+      const savedKyc = getScopedLocalStorageItem("survivalLensKyc");
       if (savedKyc) {
         try {
           const parsed = JSON.parse(savedKyc) || {};
