@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -8,7 +8,9 @@ import {
   ArrowRight,
   UploadCloud,
   CheckCircle2,
+  ShieldAlert,
   Fingerprint,
+  Lock,
   Plus,
   Trash2,
   Loader2
@@ -31,8 +33,20 @@ import { getKycData, saveKycData, calculateKycCompletion, IKycCompany } from "..
 export default function KycProcessPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const hasHydratedRef = useRef(false);
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const [isResolvingPopulation, setIsResolvingPopulation] = useState(false);
+  const [populationLookupError, setPopulationLookupError] = useState("");
+  const [resolvedPopulation, setResolvedPopulation] = useState<number | null>(null);
+  const [resolvedServiceZone, setResolvedServiceZone] = useState("");
+  const [resolvedCityName, setResolvedCityName] = useState("");
 
   // ── STRICT NATIVE KYC STATE ──
   const [kycData, setKycData] = useState({
@@ -168,6 +182,20 @@ export default function KycProcessPage() {
             avgWorkingHours: parsed.avgWorkingHours ? parsed.avgWorkingHours.toString() : "",
             status: parsed.status || "not_started"
           });
+
+          const savedPopulation = Number(parsed.population);
+          const savedZone = typeof parsed.serviceZone === "string"
+            ? parsed.serviceZone.trim()
+            : typeof parsed.zone === "string"
+              ? parsed.zone.trim()
+              : "";
+
+          if (Number.isFinite(savedPopulation) && savedPopulation > 0) {
+            setResolvedPopulation(savedPopulation);
+          }
+          if (savedZone) {
+            setResolvedServiceZone(savedZone);
+          }
         } catch (_e) {
            
           setCompanies([{ id: Date.now().toString(), category: "", company: "", partnerId: "", dashboardScreenshot: "", verified: false }]);
@@ -179,6 +207,7 @@ export default function KycProcessPage() {
       
       setIsMounted(true);
       setIsLoading(false);
+      hasHydratedRef.current = true;
     };
 
     fetchData();
@@ -187,49 +216,140 @@ export default function KycProcessPage() {
   // Completion Percentage safely checks entire companies mappings naturally
   const completionProps = useMemo(() => calculateKycCompletion(kycData, companies), [kycData, companies]);
   const profileSource = searchParams.get("source") === "profile";
+  const overviewSource = searchParams.get("source") === "overview";
+  const incompleteFocus = searchParams.get("focus") === "incomplete";
+  const isKycApproved = kycData.status === "approved";
 
-  useEffect(() => {
-    if (!isLoading && kycData.status === "approved" && !profileSource) {
-      router.replace("/dashboard/profile");
-    }
-  }, [isLoading, kycData.status, profileSource, router]);
+  const missingRequirements = useMemo(() => {
+    const items: string[] = [];
 
-  // Unified save handler parsing local vs. remote arrays seamlessly
-  const handleSaveKyc = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const newStatus = isBasicKycReady ? "pending" : "partial";
-    
-    // Explicitly formatting pure array excluding _id and verified
+    if (!validation.aadhaarOk) items.push("Aadhaar");
+    if (!validation.panOk) items.push("PAN");
+    if (!validation.ageOk) items.push("Age");
+    if (!validation.locationOk) items.push("Location");
+    if (!validation.incomeOk) items.push("Weekly Income");
+    if (!validation.hoursOk) items.push("Weekly Hours");
+    if (!validation.categoryOk) items.push("Category");
+    if (!validation.photoOk) items.push("Live Photo");
+    if (!validation.companyOk) items.push("Company");
+    if (!validation.partnerOk) items.push("Partner ID");
+    if (!validation.screenshotOk) items.push("Dashboard Proof");
+
+    return items;
+  }, [validation]);
+
+  const completedPlatforms = useMemo(
+    () =>
+      companies.filter(
+        (company) =>
+          Boolean(company.company.trim()) &&
+          company.partnerId.trim().length >= 4 &&
+          Boolean(company.dashboardScreenshot)
+      ).length,
+    [companies]
+  );
+
+  const buildKycPayload = () => {
     const formattedCompanies = companies
-      .filter(c => globalCategory && c.company)
-      .map(c => ({
-         category: globalCategory,
-         company: c.company,
-         partnerId: c.partnerId,
-         dashboardScreenshot: c.dashboardScreenshot
+      .filter((c) => globalCategory && c.company)
+      .map((c) => ({
+        category: globalCategory,
+        company: c.company,
+        partnerId: c.partnerId,
+        dashboardScreenshot: c.dashboardScreenshot,
       }));
 
-    const payloadToSave = {
-      ...kycData,
-      city: kycData.location,
-      status: newStatus,
-      companies: formattedCompanies
-    };
-    
-    // Save locally securely mapped identically against POST schema
-    localStorage.setItem("survivalLensKyc", JSON.stringify(payloadToSave));
-    
-    try {
-      await saveKycData({
+    const currentStatus = isKycApproved ? "approved" : isBasicKycReady ? "approved" : "partial";
+    const zoneValue = resolvedServiceZone || "";
+    const populationValue = resolvedPopulation ?? undefined;
+
+    return {
+      payloadToSave: {
+        ...kycData,
+        city: kycData.location,
+        location: kycData.location,
+        serviceZone: zoneValue,
+        zone: zoneValue,
+        population: populationValue,
+        status: currentStatus,
+        companies: formattedCompanies,
+      },
+      savePayload: {
         aadhaar: kycData.aadhaar,
         pan: kycData.pan,
         photo: kycData.photo,
         city: kycData.location,
+        location: kycData.location,
+        serviceZone: zoneValue,
+        zone: zoneValue,
+        population: populationValue,
         age: parseInt(kycData.age) || undefined,
         avgWeeklyIncome: parseInt(kycData.avgWeeklyIncome) || undefined,
         avgWorkingHours: parseInt(kycData.avgWorkingHours) || undefined,
-        companies: formattedCompanies as IKycCompany[]
-      });
+        companies: formattedCompanies as IKycCompany[],
+      },
+    };
+  };
+
+  const persistKycDraft = async () => {
+    if (!hasHydratedRef.current) return;
+
+    const { payloadToSave, savePayload } = buildKycPayload();
+    localStorage.setItem("survivalLensKyc", JSON.stringify(payloadToSave));
+
+    try {
+      await saveKycData(savePayload);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    if (!isLoading && kycData.status === "approved" && !profileSource && !overviewSource) {
+      router.replace("/dashboard/profile");
+    }
+  }, [isLoading, kycData.status, profileSource, overviewSource, router]);
+
+  useEffect(() => {
+    if (!incompleteFocus) return;
+
+    const element = document.getElementById("kyc-incomplete-focus");
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [incompleteFocus]);
+
+  useEffect(() => {
+    if (!hasHydratedRef.current || isLoading) return;
+
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+    }
+
+    persistTimerRef.current = setTimeout(() => {
+      void persistKycDraft();
+    }, 350);
+
+    return () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+      }
+    };
+  }, [kycData, companies, globalCategory, resolvedServiceZone, resolvedPopulation, isLoading]);
+
+  // Unified save handler parsing local vs. remote arrays seamlessly
+  const handleSaveKyc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { payloadToSave, savePayload } = buildKycPayload();
+
+    if (kycData.photo) {
+      syncAvatarPhoto(kycData.photo);
+    }
+    
+    localStorage.setItem("survivalLensKyc", JSON.stringify(payloadToSave));
+    
+    try {
+      await saveKycData(savePayload);
     } catch (err) {
       console.error(err);
     }
@@ -238,6 +358,10 @@ export default function KycProcessPage() {
   };
 
   const handleChange = (field: string, value: string) => {
+    if (isKycApproved && (field === "aadhaar" || field === "pan")) {
+      return;
+    }
+
     let nextValue = value;
 
     if (field === "aadhaar" || field === "age" || field === "avgWeeklyIncome" || field === "avgWorkingHours") {
@@ -248,8 +372,69 @@ export default function KycProcessPage() {
       nextValue = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
     }
 
+    if (field === "location") {
+      setPopulationLookupError("");
+    }
+
     setKycData(prev => ({ ...prev, [field]: nextValue }));
   };
+
+  useEffect(() => {
+    const cityValue = kycData.location.trim();
+
+    if (cityValue.length < 2) {
+      setIsResolvingPopulation(false);
+      setPopulationLookupError("");
+      setResolvedCityName("");
+      setResolvedPopulation(null);
+      setResolvedServiceZone("");
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsResolvingPopulation(true);
+    setPopulationLookupError("");
+
+    const timer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ city: cityValue, country: "IN" });
+        const response = await fetch(`/api/location/population?${params.toString()}`, {
+          method: "GET",
+          signal: controller.signal,
+          cache: "no-store",
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data?.message || "Unable to resolve population");
+        }
+
+        const fetchedPopulation = Number(data?.population);
+        const fetchedZone = typeof data?.serviceZone === "string" ? data.serviceZone : "";
+
+        setResolvedCityName(typeof data?.matchedCity === "string" ? data.matchedCity : cityValue);
+        setResolvedPopulation(Number.isFinite(fetchedPopulation) ? fetchedPopulation : null);
+        setResolvedServiceZone(fetchedZone);
+      } catch (error: unknown) {
+        if (controller.signal.aborted) return;
+
+        const message = error instanceof Error ? error.message : "Failed to resolve population";
+        setResolvedCityName("");
+        setResolvedPopulation(null);
+        setResolvedServiceZone("");
+        setPopulationLookupError(message);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsResolvingPopulation(false);
+        }
+      }
+    }, 500);
+
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [kycData.location]);
 
   const handleGlobalCategoryChange = (value: string) => {
     setGlobalCategory(value);
@@ -270,12 +455,122 @@ export default function KycProcessPage() {
   };
 
   const removeCompany = (id: string) => {
-    setCompanies(prev => prev.length > 1 ? prev.filter(c => c.id !== id) : prev);
+    setCompanies(prev => {
+      const nextCompanies = prev.filter(c => c.id !== id);
+      return nextCompanies.length > 0
+        ? nextCompanies
+        : [{ id: Date.now().toString(), category: globalCategory, company: "", partnerId: "", dashboardScreenshot: "", verified: false }];
+    });
   };
 
   const handleGlobalMockUpload = (field: "photo") => {
     setKycData(prev => ({ ...prev, [field]: "uploaded_file.png" }));
   };
+
+  const syncAvatarPhoto = (photoDataUrl: string) => {
+    localStorage.setItem("survivalLensAvatar", photoDataUrl);
+
+    const storedUser = localStorage.getItem("user");
+    if (!storedUser) return;
+
+    try {
+      const parsed = JSON.parse(storedUser);
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          ...parsed,
+          avatarUrl: photoDataUrl,
+        })
+      );
+    } catch {
+      // Ignore malformed cached user state.
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.pause();
+      (videoRef.current as HTMLVideoElement).srcObject = null;
+    }
+
+    setIsCameraOpen(false);
+    setIsCameraReady(false);
+  };
+
+  const startCamera = async () => {
+    setCameraError("");
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError("Camera access is not supported in this browser.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+      setIsCameraOpen(true);
+      setIsCameraReady(false);
+    } catch {
+      setCameraError("Camera permission was denied or unavailable.");
+    }
+  };
+
+  const captureLivePhoto = () => {
+    const video = videoRef.current;
+    if (!video || !isCameraReady || video.videoWidth === 0 || video.videoHeight === 0) {
+      setCameraError("Camera is still initializing. Please wait a moment and try again.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 720;
+    canvas.height = video.videoHeight || 720;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const photoDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+
+    setKycData((prev) => ({ ...prev, photo: photoDataUrl }));
+    syncAvatarPhoto(photoDataUrl);
+    stopCamera();
+  };
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isCameraOpen || !streamRef.current || !videoRef.current) return;
+
+    const video = videoRef.current;
+    video.srcObject = streamRef.current;
+
+    const markReady = () => {
+      setIsCameraReady(true);
+      video.play().catch(() => {});
+    };
+
+    video.onloadedmetadata = markReady;
+    video.oncanplay = markReady;
+
+    return () => {
+      video.onloadedmetadata = null;
+      video.oncanplay = null;
+    };
+  }, [isCameraOpen]);
 
   const handleCompanyMockUpload = (id: string) => {
     updateCompany(id, "dashboardScreenshot", "screenshot_secured.png");
@@ -316,7 +611,7 @@ export default function KycProcessPage() {
              Identity Authentication
            </h1>
            <p className="text-[14px] text-slate-500 font-medium leading-relaxed">
-             Complete your algorithmic profile incorporating multi-company affiliations strictly enforcing global KYC regulations supporting decentralized buffer payouts natively.
+             Complete your KYC once and keep your work profile verified across all linked gig platforms.
            </p>
          </div>
          
@@ -336,26 +631,152 @@ export default function KycProcessPage() {
          </div>
       </div>
 
+      <div className="relative z-10 mb-8 rounded-[2rem] border border-slate-200 bg-white/90 p-5 lg:p-6 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Verification Status</p>
+            <div className="mt-2 flex items-center gap-3">
+              <span
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] border ${
+                  isKycApproved
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-amber-200 bg-amber-50 text-amber-700"
+                }`}
+              >
+                {isKycApproved ? <CheckCircle2 size={12} /> : <ShieldAlert size={12} />}
+                {isKycApproved ? "Approved" : "Incomplete"}
+              </span>
+              {!isKycApproved && (
+                <span className="text-xs font-bold text-slate-500">
+                  {missingRequirements.length} requirement{missingRequirements.length === 1 ? "" : "s"} pending
+                </span>
+              )}
+            </div>
+          </div>
+
+          {!isKycApproved && missingRequirements.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {missingRequirements.slice(0, 5).map((item) => (
+                <span key={item} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">
+                  {item}
+                </span>
+              ))}
+              {missingRequirements.length > 5 && (
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">
+                  +{missingRequirements.length - 5} more
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="relative z-10 mb-10 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="rounded-3xl border border-slate-200 bg-white/90 p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Form Completion</p>
+          <p className="mt-2 text-2xl font-black text-slate-900">{completionProps.percentage}%</p>
+          <p className="text-[11px] font-bold text-slate-500 mt-1">{completionProps.filledFields}/{completionProps.totalFields} fields done</p>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white/90 p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Linked Platforms</p>
+          <p className="mt-2 text-2xl font-black text-slate-900">{completedPlatforms}/{companies.length}</p>
+          <p className="text-[11px] font-bold text-slate-500 mt-1">cards fully completed</p>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white/90 p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Pending Items</p>
+          <p className="mt-2 text-2xl font-black text-slate-900">{missingRequirements.length}</p>
+          <p className="text-[11px] font-bold text-slate-500 mt-1">finish these to submit KYC</p>
+        </div>
+      </div>
+
+      {incompleteFocus && !isKycApproved && (
+        <div
+          id="kyc-incomplete-focus"
+          className="relative z-10 mb-8 rounded-[2rem] border border-amber-200 bg-amber-50/90 p-5 lg:p-6 shadow-[0_10px_30px_rgba(251,191,36,0.08)]"
+        >
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 border border-amber-200">
+                <ShieldAlert size={12} /> Incomplete KYC
+              </div>
+              <h2 className="mt-3 text-xl font-black text-slate-900 tracking-tight">Finish the highlighted requirements below</h2>
+              <p className="mt-1 text-sm font-medium text-amber-900/80 leading-relaxed">
+                You opened this page from the overview warning. The missing items are highlighted here so you can complete them without hunting through the form.
+              </p>
+            </div>
+
+            {missingRequirements.length > 0 && (
+              <div className="rounded-2xl border border-amber-200 bg-white/80 p-4 min-w-[260px]">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700 mb-3">Missing items</p>
+                <div className="flex flex-wrap gap-2">
+                  {missingRequirements.map((item) => (
+                    <span key={item} className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-black text-amber-800 border border-amber-200">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <motion.form 
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
         className="relative z-10 space-y-10"
         onSubmit={handleSaveKyc}
       >
         {/* ── BASIC KYC FIELDS ── */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-8 lg:p-12 shadow-[0_20px_60px_rgba(0,0,0,0.04)] border border-white">
-          <h2 className="text-xl font-bold text-slate-900 mb-8 border-b border-slate-100 pb-4">Personal Identity</h2>
+        <div className="bg-white/85 backdrop-blur-xl rounded-[2.5rem] p-8 lg:p-12 shadow-[0_20px_60px_rgba(0,0,0,0.04)] border border-slate-100">
+          <div className="mb-8 border-b border-slate-100 pb-4">
+            <h2 className="text-xl font-bold text-slate-900">Personal Identity</h2>
+            <p className="mt-1 text-[12px] font-semibold text-slate-500">Match these fields exactly with your official documents and active work profile.</p>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-8">
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Aadhaar ID</label>
-              <input type="text" value={kycData.aadhaar} onChange={e => handleChange('aadhaar', e.target.value)} maxLength={12} inputMode="numeric" placeholder="0000 0000 0000 0000" className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none ${validation.aadhaarOk || !kycData.aadhaar ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`} />
-              <p className={`mt-2 text-[11px] font-bold ${validation.aadhaarOk || !kycData.aadhaar ? 'text-slate-400' : 'text-red-500'}`}>Required: exactly 12 digits, numbers only.</p>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={kycData.aadhaar}
+                  onChange={e => handleChange('aadhaar', e.target.value)}
+                  maxLength={12}
+                  inputMode="numeric"
+                  placeholder="0000 0000 0000 0000"
+                  disabled={isKycApproved}
+                  className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none ${isKycApproved ? 'border-emerald-200 bg-emerald-50/60 text-slate-500 cursor-not-allowed pr-14' : validation.aadhaarOk || !kycData.aadhaar ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`}
+                />
+                {isKycApproved && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-700 border border-emerald-200">
+                    <Lock size={10} /> Locked
+                  </span>
+                )}
+              </div>
+              <p className={`mt-2 text-[11px] font-bold ${isKycApproved ? 'text-emerald-600' : validation.aadhaarOk || !kycData.aadhaar ? 'text-slate-400' : 'text-red-500'}`}>
+                {isKycApproved ? 'Aadhaar is locked after KYC approval.' : 'Required: exactly 12 digits, numbers only.'}
+              </p>
             </div>
             
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">PAN Number</label>
-              <input type="text" value={kycData.pan} onChange={e => handleChange('pan', e.target.value)} maxLength={10} placeholder="ABCDE1234F" className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none uppercase ${validation.panOk || !kycData.pan ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`} />
-              <p className={`mt-2 text-[11px] font-bold ${validation.panOk || !kycData.pan ? 'text-slate-400' : 'text-red-500'}`}>
-                {validation.panOk ? "PAN verified: format matched." : "Required: 10 characters in PAN format (AAAAA1234A)."}
+              <div className="relative">
+                <input
+                  type="text"
+                  value={kycData.pan}
+                  onChange={e => handleChange('pan', e.target.value)}
+                  maxLength={10}
+                  placeholder="ABCDE1234F"
+                  disabled={isKycApproved}
+                  className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none uppercase ${isKycApproved ? 'border-emerald-200 bg-emerald-50/60 text-slate-500 cursor-not-allowed pr-14' : validation.panOk || !kycData.pan ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`}
+                />
+                {isKycApproved && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-700 border border-emerald-200">
+                    <Lock size={10} /> Locked
+                  </span>
+                )}
+              </div>
+              <p className={`mt-2 text-[11px] font-bold ${isKycApproved ? 'text-emerald-600' : validation.panOk || !kycData.pan ? 'text-slate-400' : 'text-red-500'}`}>
+                {isKycApproved ? 'PAN is locked after KYC approval.' : validation.panOk ? "PAN verified: format matched." : "Required: 10 characters in PAN format (AAAAA1234A)."}
               </p>
             </div>
 
@@ -378,6 +799,24 @@ export default function KycProcessPage() {
               <p className={`mt-2 text-[11px] font-bold ${validation.locationOk || !kycData.location ? 'text-slate-400' : 'text-red-500'}`}>
                 Required: enter a valid city/location using letters or numbers.
               </p>
+              <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Auto Service Zone</p>
+                <p className="mt-1 text-[12px] font-black text-slate-800">{resolvedServiceZone || "Not detected yet"}</p>
+                {resolvedPopulation !== null && (
+                  <p className="mt-1 text-[11px] font-bold text-slate-600">
+                    Population: {new Intl.NumberFormat("en-IN").format(resolvedPopulation)}
+                  </p>
+                )}
+                {isResolvingPopulation && (
+                  <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-blue-600">Resolving location population...</p>
+                )}
+                {!isResolvingPopulation && resolvedCityName && (
+                  <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Matched city: {resolvedCityName}</p>
+                )}
+                {populationLookupError && (
+                  <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-600">{populationLookupError}</p>
+                )}
+              </div>
             </div>
 
             <div>
@@ -403,11 +842,70 @@ export default function KycProcessPage() {
               <p className={`mt-2 text-[11px] font-bold ${validation.categoryOk ? 'text-slate-400' : 'text-red-500'}`}>Required: choose one platform strategy sector.</p>
             </div>
 
-            <div className="md:col-span-2 border-t border-slate-100 pt-8 mt-2">
+            <div className="md:col-span-2 border-t border-slate-100 pt-8 mt-2 space-y-4">
                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Live Photo Evidence</label>
-               <button type="button" onClick={() => handleGlobalMockUpload('photo')} className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight ${kycData.photo ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
-                 {kycData.photo ? <><CheckCircle2 size={18} /> Photographic ID Secured</> : <><UploadCloud size={18} /> Upload Authentic Photo</>}
-               </button>
+
+               <div className={`overflow-hidden rounded-[2rem] border ${kycData.photo ? "border-emerald-500/30" : "border-slate-200"}`}>
+                 {isCameraOpen ? (
+                   <div className="space-y-4 bg-slate-950 p-4">
+                     <video
+                       ref={videoRef}
+                       autoPlay
+                       playsInline
+                       muted
+                       className="w-full aspect-video rounded-[1.5rem] bg-black object-cover"
+                     />
+                     <div className="flex flex-col sm:flex-row gap-3">
+                       <button
+                         type="button"
+                         onClick={captureLivePhoto}
+                         disabled={!isCameraReady}
+                         className={`flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-4 text-sm font-black text-white transition-colors ${isCameraReady ? "bg-emerald-500 hover:bg-emerald-400" : "bg-emerald-500/50 cursor-not-allowed"}`}
+                       >
+                         <CheckCircle2 size={18} /> {isCameraReady ? "Capture Photo" : "Camera Loading..."}
+                       </button>
+                       <button
+                         type="button"
+                         onClick={stopCamera}
+                         className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-5 py-4 text-sm font-black text-slate-200 transition-colors hover:bg-white/15"
+                       >
+                         Cancel
+                       </button>
+                     </div>
+                   </div>
+                 ) : (
+                   <button
+                     type="button"
+                     onClick={startCamera}
+                     className={`w-full flex items-center justify-center gap-3 py-10 transition-all font-black tracking-tight ${kycData.photo ? "bg-emerald-50 text-emerald-700" : "bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600"}`}
+                   >
+                     {kycData.photo ? <CheckCircle2 size={18} /> : <Fingerprint size={18} />}
+                     {kycData.photo ? "Live Photo Captured" : "Open Camera to Capture Live Photo"}
+                   </button>
+                 )}
+               </div>
+
+               {kycData.photo && !isCameraOpen && (
+                 <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-4 flex flex-col sm:flex-row items-center gap-4">
+                   <img src={kycData.photo} alt="Captured live photo" className="w-24 h-24 rounded-2xl object-cover border border-emerald-200" />
+                   <div className="flex-1">
+                     <p className="text-sm font-black text-emerald-800">Live photo secured</p>
+                     <p className="text-[11px] font-medium text-emerald-700/80">This photo is now used across your profile and dashboard avatars.</p>
+                   </div>
+                   <button
+                     type="button"
+                     onClick={startCamera}
+                     className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-white transition-colors hover:bg-emerald-500"
+                   >
+                     Retake
+                   </button>
+                 </div>
+               )}
+
+               {cameraError && (
+                 <p className="text-[11px] font-bold text-red-500">{cameraError}</p>
+               )}
+
               <p className={`mt-2 text-[11px] font-bold ${validation.photoOk ? 'text-slate-400' : 'text-red-500'}`}>Required: photo evidence must be attached.</p>
             </div>
           </div>
@@ -416,7 +914,10 @@ export default function KycProcessPage() {
         {/* ── COMPANIES SECTION ── */}
         <div className="space-y-6">
           <div className="flex items-center justify-between pl-4 pr-2">
-             <h2 className="text-xl font-bold text-slate-900">Affiliated Platforms</h2>
+             <div>
+               <h2 className="text-xl font-bold text-slate-900">Affiliated Platforms</h2>
+               <p className="text-[12px] font-semibold text-slate-500 mt-1">Add each active gig account with partner ID and dashboard proof.</p>
+             </div>
              <button type="button" onClick={addCompany} className="flex items-center gap-1.5 text-[12px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 py-2 px-4 rounded-xl transition-colors">
                 <Plus size={14} strokeWidth={3} /> Add Platform
              </button>
@@ -432,6 +933,26 @@ export default function KycProcessPage() {
                 transition={{ duration: 0.3 }}
                 className="bg-white/80 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 overflow-hidden relative"
               >
+                {(() => {
+                  const companyComplete =
+                    Boolean(company.company.trim()) &&
+                    company.partnerId.trim().length >= 4 &&
+                    Boolean(company.dashboardScreenshot);
+
+                  return (
+                    <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Platform Card Progress</p>
+                        <p className="text-[12px] font-bold text-slate-700 mt-1">{companyComplete ? "Ready for submission" : "Missing one or more required fields"}</p>
+                      </div>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] border ${companyComplete ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+                        {companyComplete ? <CheckCircle2 size={12} /> : <ShieldAlert size={12} />}
+                        {companyComplete ? "Complete" : "Pending"}
+                      </span>
+                    </div>
+                  );
+                })()}
+
                 {/* Visual Indicator if verified heavily */}
                 {company.verified && (
                   <div className="absolute top-4 right-8 bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1 tracking-widest border border-emerald-100">
@@ -471,6 +992,7 @@ export default function KycProcessPage() {
                      <button type="button" onClick={() => handleCompanyMockUpload(company.id)} className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight ${company.dashboardScreenshot ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
                        {company.dashboardScreenshot ? <><CheckCircle2 size={18} /> Earnings Screenshot Secured</> : <><UploadCloud size={18} /> Upload Authentic Gig History Proof</>}
                      </button>
+                    <p className="mt-2 text-[11px] font-medium text-slate-500">Upload a screenshot where your partner ID and recent earnings are visible.</p>
                     <p className={`mt-2 text-[11px] font-bold ${company.dashboardScreenshot ? 'text-slate-400' : 'text-red-500'}`}>Required: attach dashboard evidence for this company.</p>
                   </div>
                 </div>
@@ -482,19 +1004,23 @@ export default function KycProcessPage() {
         {/* ── ACTION FOOTER ── */}
         <div className="mt-4 bg-white/80 backdrop-blur-xl rounded-[2.5rem] p-8 lg:p-12 shadow-[0_20px_60px_rgba(0,0,0,0.04)] border border-white flex flex-col md:flex-row items-center justify-between gap-6">
            <p className="text-[11px] font-bold text-slate-400 max-w-sm leading-relaxed">
-             All payloads are symmetrically encrypted (AES-256) seamlessly matching the new multi-auditor API schema offline completely seamlessly securely mitigating redundant payloads.
+             Your identity data is saved securely and used only for verification, eligibility checks, and payout protection features.
            </p>
            
            <button 
-              disabled={!isBasicKycReady || isLoading}
+              disabled={isLoading || (!isBasicKycReady && !isKycApproved)}
               type="submit" 
               className={`w-full md:w-auto px-10 font-black py-4 rounded-2xl shadow-xl shadow-slate-900/10 transition-all text-sm group flex items-center justify-center gap-2 ${
-                isBasicKycReady && !isLoading
+                (isBasicKycReady || isKycApproved) && !isLoading
                   ? 'bg-slate-900 hover:bg-black text-white hover:-translate-y-0.5'
                   : 'bg-slate-300 text-slate-500 cursor-not-allowed'
               }`}
             >
-            {isBasicKycReady ? "Submit Complete Multisig Authentication" : "Complete All Required Fields"}
+            {isKycApproved
+              ? "Save Profile Updates"
+              : isBasicKycReady
+                ? "Submit KYC"
+                : "Complete All Required Fields"}
             <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
