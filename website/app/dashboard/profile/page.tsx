@@ -190,10 +190,10 @@ export default function ProfilePage() {
                </div>
             </div>
             <button 
-               onClick={() => router.push("/dashboard/profile/kyc")}
+              onClick={() => router.push("/dashboard/wallet")}
                className="text-[11px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-5 py-2.5 rounded-lg transition-colors border border-emerald-200/50"
             >
-               View Identity Payload
+              Manage KYC in Wallet
             </button>
         </div>
       )}

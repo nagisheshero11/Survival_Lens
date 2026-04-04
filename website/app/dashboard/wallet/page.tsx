@@ -12,6 +12,7 @@ export default function WalletPage() {
   const [error, setError] = useState("");
   const [kycProgress, setKycProgress] = useState(0);
   const [walletLocked, setWalletLocked] = useState(false);
+  const isKycComplete = kycProgress >= 100;
 
   useEffect(() => {
     const fetchWalletData = async () => {
@@ -100,6 +101,12 @@ export default function WalletPage() {
             Manage your earnings and transaction history.
           </p>
         </div>
+        <button
+          onClick={() => router.push("/dashboard/profile/kyc?source=wallet")}
+          className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-black uppercase tracking-[0.16em] transition-colors"
+        >
+          Manage KYC
+        </button>
       </div>
 
       {error ? (
@@ -135,7 +142,7 @@ export default function WalletPage() {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <button
-              onClick={() => router.push("/dashboard/profile/kyc")}
+              onClick={() => router.push("/dashboard/profile/kyc?source=wallet")}
               className="px-5 py-3 rounded-xl bg-slate-900 hover:bg-black text-white text-sm font-black transition-colors"
             >
               {kycProgress > 0 ? "Resume KYC" : "Start KYC"}

@@ -320,8 +320,9 @@ export default function DashboardPage() {
   const trimmedWorkingHours = toTrimmedString(kycData.avgWorkingHours);
   const workingHoursLabel = trimmedWorkingHours ? `${trimmedWorkingHours} hrs/wk` : "Not set";
   const locationQuery = [mockProfile?.zone, mockProfile?.city].filter(Boolean).join(", ") || "India";
-  const kycStatusLabel = completionProps.percentage >= 100 ? "KYC Verified" : `KYC ${completionProps.percentage}%`;
-  const isKycComplete = completionProps.percentage >= 100;
+  const kycStatus = (kycData as any)?.status;
+  const isKycComplete = completionProps.percentage >= 100 || kycStatus === "approved";
+  const kycStatusLabel = isKycComplete ? "KYC Verified" : `KYC ${completionProps.percentage}%`;
   const displayedLocation = currentCity.toLowerCase() === "india" ? "India" : `${currentCity}, India`;
   const mapSrc = gpsCoords
     ? `https://www.google.com/maps?q=${gpsCoords.lat},${gpsCoords.lng}&z=15&output=embed`
@@ -374,7 +375,6 @@ export default function DashboardPage() {
           <Link
             href="/dashboard/profile"
             className="w-11 h-11 rounded-2xl bg-slate-100 overflow-hidden ring-1 ring-slate-200 shadow-sm flex items-center justify-center text-slate-400 font-black tracking-tight cursor-pointer hover:ring-blue-200 transition-colors"
-            aria-label="Go to profile"
           >
             {avatarUrl ? (
               <img src={avatarUrl} alt="User avatar" className="w-full h-full object-cover bg-slate-100" />
@@ -386,7 +386,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── CRITICAL KYC NOTIFICATION ── */}
-      {completionProps.percentage < 100 && (
+      {!isKycComplete && (
         <div className="relative z-10 bg-amber-50 border border-amber-200/60 rounded-[2rem] p-5 lg:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-10 shadow-[0_10px_40px_rgba(251,191,36,0.1)]">
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 shrink-0 border border-amber-200/50">
@@ -531,6 +531,14 @@ export default function DashboardPage() {
                   {completionProps.percentage > 0 ? "Resume KYC to Unlock Wallet" : "Start KYC to Unlock Wallet"}
                 </button>
               </div>
+            )}
+            {isKycComplete && (
+              <button
+                onClick={() => router.push("/dashboard/wallet")}
+                className="mb-3 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-200 hover:bg-white/10 transition-colors"
+              >
+                Manage KYC in Wallet
+              </button>
             )}
 
             <div className="grid grid-cols-3 gap-2 mb-3">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowLeft,
@@ -30,6 +30,7 @@ import { getKycData, saveKycData, calculateKycCompletion, IKycCompany } from "..
 
 export default function KycProcessPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -184,6 +185,13 @@ export default function KycProcessPage() {
 
   // Completion Percentage safely checks entire companies mappings naturally
   const completionProps = useMemo(() => calculateKycCompletion(kycData, companies), [kycData, companies]);
+  const walletSource = searchParams.get("source") === "wallet";
+
+  useEffect(() => {
+    if (!isLoading && kycData.status === "approved" && !walletSource) {
+      router.replace("/dashboard/wallet");
+    }
+  }, [isLoading, kycData.status, walletSource, router]);
 
   // Unified save handler parsing local vs. remote arrays seamlessly
   const handleSaveKyc = async (e: React.FormEvent) => {
@@ -236,7 +244,7 @@ export default function KycProcessPage() {
     }
 
     if (field === "pan") {
-      nextValue = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      nextValue = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
     }
 
     setKycData(prev => ({ ...prev, [field]: nextValue }));
@@ -345,7 +353,9 @@ export default function KycProcessPage() {
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">PAN Number</label>
               <input type="text" value={kycData.pan} onChange={e => handleChange('pan', e.target.value)} maxLength={10} placeholder="ABCDE1234F" className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none uppercase ${validation.panOk || !kycData.pan ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`} />
-              <p className={`mt-2 text-[11px] font-bold ${validation.panOk || !kycData.pan ? 'text-slate-400' : 'text-red-500'}`}>Required: 10 characters in PAN format (AAAAA1234A).</p>
+              <p className={`mt-2 text-[11px] font-bold ${validation.panOk || !kycData.pan ? 'text-slate-400' : 'text-red-500'}`}>
+                {validation.panOk ? "PAN verified: format matched." : "Required: 10 characters in PAN format (AAAAA1234A)."}
+              </p>
             </div>
 
             <div>
