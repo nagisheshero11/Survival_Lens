@@ -101,12 +101,6 @@ export default function WalletPage() {
             Manage your earnings and transaction history.
           </p>
         </div>
-        <button
-          onClick={() => router.push("/dashboard/profile/kyc?source=wallet")}
-          className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-black uppercase tracking-[0.16em] transition-colors"
-        >
-          Manage KYC
-        </button>
       </div>
 
       {error ? (
@@ -142,10 +136,10 @@ export default function WalletPage() {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <button
-              onClick={() => router.push("/dashboard/profile/kyc?source=wallet")}
+              onClick={() => router.push("/dashboard/profile")}
               className="px-5 py-3 rounded-xl bg-slate-900 hover:bg-black text-white text-sm font-black transition-colors"
             >
-              {kycProgress > 0 ? "Resume KYC" : "Start KYC"}
+              Open Profile
             </button>
             <button
               onClick={() => router.push("/dashboard/profile")}
@@ -157,7 +151,6 @@ export default function WalletPage() {
         </div>
       ) : (
         <div className="relative z-10 grid grid-cols-1 gap-8">
-          
           {/* ── BALANCE CARD ── */}
           <div className="bg-slate-900 rounded-[2rem] p-8 lg:p-10 shadow-[0_20px_50px_rgba(15,23,42,0.15)] text-white relative overflow-hidden group max-w-xl">
             <div className="absolute inset-0 bg-gradient-to-bl from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
@@ -167,7 +160,6 @@ export default function WalletPage() {
                 <span className="px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-lg text-[9px] uppercase font-black tracking-[0.2em]">
                    Available Balance
                 </span>
-                <Wallet size={24} className="text-blue-400" />
               </div>
               <h2 className="text-5xl lg:text-6xl font-black tracking-tight mb-2">
                 {balance !== null ? formatCurrency(balance) : "₹0"}

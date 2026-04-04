@@ -186,13 +186,13 @@ export default function KycProcessPage() {
 
   // Completion Percentage safely checks entire companies mappings naturally
   const completionProps = useMemo(() => calculateKycCompletion(kycData, companies), [kycData, companies]);
-  const walletSource = searchParams.get("source") === "wallet";
+  const profileSource = searchParams.get("source") === "profile";
 
   useEffect(() => {
-    if (!isLoading && kycData.status === "approved" && !walletSource) {
-      router.replace("/dashboard/wallet");
+    if (!isLoading && kycData.status === "approved" && !profileSource) {
+      router.replace("/dashboard/profile");
     }
-  }, [isLoading, kycData.status, walletSource, router]);
+  }, [isLoading, kycData.status, profileSource, router]);
 
   // Unified save handler parsing local vs. remote arrays seamlessly
   const handleSaveKyc = async (e: React.FormEvent) => {
