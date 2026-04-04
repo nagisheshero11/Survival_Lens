@@ -7,6 +7,7 @@ import { AlertCircle, FileText, Loader2, Send } from "lucide-react";
 type ClaimStatus = "pending" | "approved" | "rejected";
 
 type ClaimItem = {
+  id: string;
   reason: string;
   amount: number;
   status: ClaimStatus;
@@ -38,7 +39,8 @@ export default function ClaimsPage() {
         throw new Error(data?.message || "Failed to fetch claims");
       }
 
-      setClaims(Array.isArray(data) ? data : []);
+      const claimList = Array.isArray(data) ? (data as ClaimItem[]) : [];
+      setClaims(claimList);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unable to load claims";
       setError(message);
@@ -348,7 +350,7 @@ export default function ClaimsPage() {
 
                 return (
                   <div
-                    key={`${claim.createdAt}-${idx}`}
+                    key={claim.id || `${claim.createdAt}-${idx}`}
                     className="grid grid-cols-1 md:grid-cols-4 items-center px-4 py-4 border border-slate-100/60 bg-white rounded-2xl hover:border-slate-300/50 hover:shadow-sm transition-all"
                   >
                     <div className="md:col-span-2 mb-3 md:mb-0">

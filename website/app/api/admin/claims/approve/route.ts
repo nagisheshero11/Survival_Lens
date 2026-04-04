@@ -6,6 +6,8 @@ import jwt from 'jsonwebtoken';
 import { POST as walletCreditAPI } from '@/app/api/wallet/credit/route';
 import { logAdminTransaction } from '@/lib/adminWalletUtils';
 import User from '@/models/User';
+import ClaimVoting from '@/models/ClaimVoting';
+import { closeVotingIfExpired } from '@/lib/claimVoting';
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,6 +35,14 @@ export async function POST(request: NextRequest) {
     
     if (!claim) {
       return NextResponse.json({ message: "Claim not found" }, { status: 404 });
+    }
+
+    const voting = await ClaimVoting.findOne({ claimId: claim._id });
+    if (voting) {
+      await closeVotingIfExpired(voting);
+      if (voting.status !== 'closed') {
+        return NextResponse.json({ message: "Voting is still active for this claim" }, { status: 400 });
+      }
     }
 
     // Idempotency: Prevent re-approval or processing
