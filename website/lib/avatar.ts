@@ -3,6 +3,7 @@ export function withCacheBust(url: string | undefined | null, version?: unknown)
 
   const trimmed = url.trim();
   if (!trimmed) return "";
+  if (trimmed.startsWith("data:")) return trimmed;
 
   let stamp: string;
   if (typeof version === "string" || typeof version === "number") {

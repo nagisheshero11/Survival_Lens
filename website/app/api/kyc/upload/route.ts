@@ -32,14 +32,17 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get("file");
-    const field = String(formData.get("field") || "photo");
+    const field = String(formData.get("field") || "dashboardScreenshot");
 
     if (!(file instanceof File)) {
       return NextResponse.json({ message: "No file uploaded" }, { status: 400 });
     }
 
-    if (!(field === "photo" || field === "dashboardScreenshot")) {
-      return NextResponse.json({ message: "Invalid upload field" }, { status: 400 });
+    if (field !== "dashboardScreenshot") {
+      return NextResponse.json(
+        { message: "Only dashboardScreenshot uploads are supported on this endpoint" },
+        { status: 400 }
+      );
     }
 
     if (!ALLOWED_TYPES.has(file.type)) {

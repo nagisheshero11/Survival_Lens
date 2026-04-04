@@ -7,6 +7,8 @@ import {
   ArrowLeft,
   ArrowRight,
   UploadCloud,
+  Camera,
+  X,
   CheckCircle2,
   ShieldAlert,
   Fingerprint,
@@ -28,15 +30,48 @@ const COMPANY_CATEGORY_MAP: Record<string, string[]> = {
 
 const ALLOWED_CATEGORIES = Object.keys(COMPANY_CATEGORY_MAP);
 
-import { getKycData, saveKycData, calculateKycCompletion, IKycCompany, uploadKycDocument } from "../../../../(services)/kyc";
+import { getKycData, saveKycData, calculateKycCompletion, IKycCompany, uploadKycDocument, saveKycPhotoCapture } from "../../../../(services)/kyc";
 import { withCacheBust } from "@/lib/avatar";
 import { getScopedLocalStorageItem, setScopedLocalStorageItem } from "@/lib/clientStorage";
+
+const INVALID_SCREENSHOT_PLACEHOLDERS = new Set([
+  "uploaded_file.png",
+  "screenshot_secured.png",
+]);
+
+function normalizeDashboardScreenshotRef(value: unknown): string {
+  if (typeof value !== "string") return "";
+
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  const withoutQuery = trimmed.split("?")[0]?.trim() || "";
+  if (INVALID_SCREENSHOT_PLACEHOLDERS.has(withoutQuery)) return "";
+
+  if (
+    trimmed.startsWith("/uploads/kyc/") ||
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("data:image/")
+  ) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith("uploads/kyc/")) {
+    return `/${trimmed}`;
+  }
+
+  return "";
+}
 
 function KycProcessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const hasHydratedRef = useRef(false);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isResolvingPopulation, setIsResolvingPopulation] = useState(false);
@@ -60,6 +95,8 @@ function KycProcessContent() {
   const [companies, setCompanies] = useState<IKycCompany[]>([]);
   const [globalCategory, setGlobalCategory] = useState<string>("");
   const [isPhotoUploading, setIsPhotoUploading] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState("");
   const [uploadingCompanyId, setUploadingCompanyId] = useState<string | null>(null);
 
   const validation = useMemo(() => {
@@ -140,7 +177,7 @@ function KycProcessContent() {
                  category: foundCategory,
                  company: matchedName,
                  partnerId: legacyPartner || "",
-                 dashboardScreenshot: legacyScreenshot || "",
+                 dashboardScreenshot: normalizeDashboardScreenshotRef(legacyScreenshot),
                  verified: false
                });
              }
@@ -166,7 +203,7 @@ function KycProcessContent() {
              category: foundGlobal || c.category || "",
              company: c.company || "",
              partnerId: c.partnerId || "",
-             dashboardScreenshot: c.dashboardScreenshot || "",
+             dashboardScreenshot: normalizeDashboardScreenshotRef(c.dashboardScreenshot),
              verified: Boolean(c.verified)
           })));
           
@@ -255,7 +292,7 @@ function KycProcessContent() {
         category: globalCategory,
         company: c.company,
         partnerId: c.partnerId,
-        dashboardScreenshot: c.dashboardScreenshot,
+        dashboardScreenshot: normalizeDashboardScreenshotRef(c.dashboardScreenshot),
       }));
 
     const currentStatus = isKycApproved ? "approved" : isBasicKycReady ? "approved" : "partial";
@@ -276,7 +313,6 @@ function KycProcessContent() {
       savePayload: {
         aadhaar: kycData.aadhaar,
         pan: kycData.pan,
-        photo: kycData.photo,
         city: kycData.location,
         location: kycData.location,
         serviceZone: zoneValue,
@@ -462,19 +498,121 @@ function KycProcessContent() {
     });
   };
 
-  const handleProfilePhotoUpload = async (file: File | null) => {
+  const stopCameraStream = () => {
+    if (streamRef.current) {
+      for (const track of streamRef.current.getTracks()) {
+        track.stop();
+      }
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopCameraStream();
+    };
+  }, []);
+
+  const openCamera = async () => {
+    setCameraError("");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError("Camera access is not supported on this browser.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+      setIsCameraOpen(true);
+
+      requestAnimationFrame(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          void videoRef.current.play();
+        }
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to access camera";
+      setCameraError(message);
+      stopCameraStream();
+    }
+  };
+
+  const closeCamera = () => {
+    setIsCameraOpen(false);
+    stopCameraStream();
+  };
+
+  const handleProfilePhotoUpload = async (file: File) => {
     if (!file) return;
 
     setIsPhotoUploading(true);
     try {
-      const result = await uploadKycDocument(file, "photo");
-      setKycData((prev) => ({ ...prev, photo: withCacheBust(result.url) }));
+      const result = await saveKycPhotoCapture(file);
+      const nextPhoto = withCacheBust(result.kyc?.photo, result.kyc?.updatedAt);
+      setKycData((prev) => ({ ...prev, photo: nextPhoto }));
+      syncAvatarPhoto(nextPhoto);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to upload profile photo";
       alert(message);
     } finally {
       setIsPhotoUploading(false);
     }
+  };
+
+  const handleCaptureFromCamera = async () => {
+    if (!videoRef.current || !canvasRef.current) {
+      setCameraError("Camera preview is not ready yet.");
+      return;
+    }
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+
+    if (!width || !height) {
+      setCameraError("Unable to capture photo. Please try again.");
+      return;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setCameraError("Unable to process captured frame.");
+      return;
+    }
+
+    context.drawImage(video, 0, 0, width, height);
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", 0.92);
+    });
+
+    if (!blob) {
+      setCameraError("Failed to capture image. Please retry.");
+      return;
+    }
+
+    const capturedFile = new File([blob], `kyc_profile_${Date.now()}.jpg`, {
+      type: "image/jpeg",
+    });
+
+    await handleProfilePhotoUpload(capturedFile);
+    closeCamera();
   };
 
   const syncAvatarPhoto = (photoDataUrl: string) => {
@@ -503,7 +641,8 @@ function KycProcessContent() {
     setUploadingCompanyId(id);
     try {
       const result = await uploadKycDocument(file, "dashboardScreenshot");
-      updateCompany(id, "dashboardScreenshot", withCacheBust(result.url));
+      const normalizedUrl = normalizeDashboardScreenshotRef(result.url);
+      updateCompany(id, "dashboardScreenshot", withCacheBust(normalizedUrl));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to upload screenshot";
       alert(message);
@@ -780,26 +919,26 @@ function KycProcessContent() {
 
             <div className="md:col-span-2 border-t border-slate-100 pt-8 mt-2 space-y-4">
                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Live Photo Evidence</label>
-               <label className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight cursor-pointer ${kycData.photo ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
-                 <input
-                   type="file"
-                   accept="image/png,image/jpeg,image/webp"
-                   className="hidden"
-                   onChange={(e) => {
-                     const file = e.target.files?.[0] || null;
-                     void handleProfilePhotoUpload(file);
-                     e.currentTarget.value = "";
-                   }}
-                 />
+               <div className={`w-full rounded-2xl border-2 border-dashed transition-all px-4 py-5 ${kycData.photo ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400"}`}>
+                 {kycData.photo ? (
+                   <img src={kycData.photo} alt="Captured profile" className="w-28 h-28 rounded-2xl object-cover border border-emerald-200 mx-auto mb-4" />
+                 ) : null}
+                 <button
+                   type="button"
+                   onClick={() => void openCamera()}
+                   className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-all font-black tracking-tight ${kycData.photo ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200" : "bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-700"}`}
+                 >
                  {isPhotoUploading ? (
                    <><Loader2 size={18} className="animate-spin" /> Uploading photo...</>
                  ) : kycData.photo ? (
-                   <><CheckCircle2 size={18} /> Photographic ID Secured</>
+                   <><Camera size={18} /> Retake Live Photo</>
                  ) : (
-                   <><UploadCloud size={18} /> Upload Authentic Photo</>
+                   <><Camera size={18} /> Open Camera for Live Capture</>
                  )}
-               </label>
+                 </button>
+               </div>
               <p className={`mt-2 text-[11px] font-bold ${validation.photoOk ? 'text-slate-400' : 'text-red-500'}`}>Required: photo evidence must be attached.</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Camera capture only. Gallery/file upload is disabled for profile photo.</p>
             </div>
           </div>
         </div>
@@ -882,6 +1021,13 @@ function KycProcessContent() {
 
                   <div className="md:col-span-2 pt-2">
                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Live Dashboard Evidence</label>
+                     {company.dashboardScreenshot ? (
+                       <img
+                         src={company.dashboardScreenshot}
+                         alt="Platform dashboard proof"
+                         className="w-full max-h-48 object-cover rounded-2xl border border-emerald-200 mb-3"
+                       />
+                     ) : null}
                      <label className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight cursor-pointer ${company.dashboardScreenshot ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
                        <input
                          type="file"
@@ -933,6 +1079,49 @@ function KycProcessContent() {
           </button>
         </div>
       </motion.form>
+
+      {isCameraOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl rounded-3xl border border-slate-700 bg-slate-950 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-black uppercase tracking-[0.14em] text-slate-200">Capture Live Photo</h3>
+              <button
+                type="button"
+                onClick={closeCamera}
+                className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-slate-800 text-slate-200 hover:bg-slate-700"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="rounded-2xl overflow-hidden border border-slate-800 bg-black">
+              <video ref={videoRef} autoPlay playsInline muted className="w-full h-auto" />
+            </div>
+
+            {cameraError && <p className="mt-3 text-[11px] font-bold text-red-400">{cameraError}</p>}
+
+            <div className="mt-4 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeCamera}
+                className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-[0.12em] border border-slate-700 text-slate-300 hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCaptureFromCamera()}
+                disabled={isPhotoUploading}
+                className="px-5 py-2 rounded-xl text-xs font-black uppercase tracking-[0.12em] bg-emerald-500 text-slate-950 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isPhotoUploading ? "Saving..." : "Capture & Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 }

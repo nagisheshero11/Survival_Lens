@@ -32,7 +32,8 @@ const companySchema = new Schema<ICompany>({
 export interface IKyc {
   aadhaar: string;
   pan: string;
-  photo: string;
+  photo?: Buffer;
+  photoMimeType?: string;
   city: string;
   location?: string;
   serviceZone?: string;
@@ -61,7 +62,8 @@ export interface IUser extends Document {
 const kycSchema = new Schema<IKyc>({
   aadhaar: { type: String, default: '' },
   pan: { type: String, default: '' },
-  photo: { type: String, default: '' },
+  photo: { type: Buffer },
+  photoMimeType: { type: String, default: '' },
   city: { type: String, default: '' },
   location: { type: String, default: '' },
   serviceZone: { type: String, default: '' },

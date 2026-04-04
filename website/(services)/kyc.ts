@@ -57,13 +57,41 @@ export const saveKycData = async (payload: Partial<IKycData>) => {
     body: JSON.stringify(payload)
   });
   
-  if (!res.ok) throw new Error("Failed to save kyc");
-  return await res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.message || "Failed to save kyc");
+  return data;
+};
+
+export const saveKycPhotoCapture = async (photo: File) => {
+  const API_URL = process.env.NEXT_PUBLIC_SERVER_API_URL || process.env.SERVER_API_URL || "";
+  const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
+
+  const formData = new FormData();
+  formData.append("photo", photo);
+
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${API_URL}/api/kyc`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: formData,
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.message || "Failed to save profile photo");
+  }
+
+  return data as { message: string; status: string; kyc?: { photo?: string; updatedAt?: string } };
 };
 
 export const uploadKycDocument = async (
   file: File,
-  field: "photo" | "dashboardScreenshot"
+  field: "dashboardScreenshot"
 ) => {
   const API_URL = process.env.NEXT_PUBLIC_SERVER_API_URL || process.env.SERVER_API_URL || "";
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
