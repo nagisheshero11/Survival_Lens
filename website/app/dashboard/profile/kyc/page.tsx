@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -30,7 +30,7 @@ const ALLOWED_CATEGORIES = Object.keys(COMPANY_CATEGORY_MAP);
 
 import { getKycData, saveKycData, calculateKycCompletion, IKycCompany } from "../../../../(services)/kyc";
 
-export default function KycProcessPage() {
+function KycProcessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -1026,5 +1026,17 @@ export default function KycProcessPage() {
         </div>
       </motion.form>
     </div>
+  );
+}
+
+export default function KycProcessPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen text-slate-400">
+         <Loader2 className="animate-spin mr-3" size={24} /> Loading...
+      </div>
+    }>
+      <KycProcessContent />
+    </Suspense>
   );
 }
