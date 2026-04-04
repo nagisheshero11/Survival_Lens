@@ -4,3 +4,10 @@ scikit-learn
 pandas
 numpy
 requests
+
+fastapi
+uvicorn
+scikit-learn
+pandas
+numpy
+requests

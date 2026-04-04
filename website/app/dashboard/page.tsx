@@ -17,8 +17,10 @@ import {
   Fingerprint,
   TrendingUp,
   History as HistoryIcon,
+  CheckCircle2,
+  MapPin,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function DashboardPage() {
   const toTrimmedString = (value: unknown) => {
@@ -51,6 +53,62 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   const [kycData, setKycData] = useState(defaultKycData);
+
+  // ── RISK SCANNER STATE ──
+  const [isScanningRisk, setIsScanningRisk] = useState(false);
+  const [showVotingModal, setShowVotingModal] = useState(false);
+  const [scanResult, setScanResult] = useState<any>(null);
+  const [showSafeToast, setShowSafeToast] = useState(false);
+
+  const handleCheckRisk = async () => {
+     if (!navigator.geolocation) {
+        alert("Geolocation is not supported by your browser.");
+        return;
+     }
+
+     setIsScanningRisk(true);
+     setScanResult(null);
+
+     navigator.geolocation.getCurrentPosition(async (position) => {
+        try {
+           const { latitude, longitude } = position.coords;
+           const response = await fetch("http://127.0.0.1:8000/v1/analyze/georisk", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ latitude, longitude })
+           });
+
+           if (response.ok) {
+              const data = await response.json();
+              setScanResult(data);
+              
+              if (data.ai_analysis?.risk_level === "CRITICAL" || data.ai_analysis?.risk_level === "WARNING") {
+                 setShowVotingModal(true);
+              } else {
+                 setShowSafeToast(true);
+                 setTimeout(() => setShowSafeToast(false), 4000);
+              }
+           } else {
+              alert("AI Service evaluated error.");
+           }
+        } catch (error) {
+           console.error("AI Service Offline:", error);
+           alert("Unable to reach the Python AI Network. Ensure backend is running locally on port 8000.");
+        } finally {
+           setIsScanningRisk(false);
+        }
+     }, (error) => {
+        console.error(error);
+        alert("Failed to retrieve your coordinates.");
+        setIsScanningRisk(false);
+     });
+  };
+
+  const submitCrowdVote = (vote: boolean) => {
+     setShowVotingModal(false);
+     setShowSafeToast(true); 
+     setTimeout(() => setShowSafeToast(false), 3000);
+  };
 
   useEffect(() => {
     let isUnmounted = false;
@@ -620,6 +678,19 @@ export default function DashboardPage() {
                 referrerPolicy="no-referrer-when-downgrade"
               />
             </div>
+            
+            <button 
+               onClick={handleCheckRisk}
+               disabled={isScanningRisk}
+               className="w-full mt-5 bg-blue-600 hover:bg-blue-700 text-white font-black tracking-tight px-6 py-4 rounded-xl transition-all shadow-[0_10px_30px_rgba(37,99,235,0.2)] hover:shadow-[0_10px_40px_rgba(37,99,235,0.4)] hover:-translate-y-0.5 text-[14px] flex items-center justify-center gap-2 relative overflow-hidden group disabled:opacity-70 disabled:pointer-events-none"
+            >
+               {isScanningRisk ? (
+                  <><Loader2 size={18} className="animate-spin" /> Uplinking to AI...</>
+               ) : (
+                  <><MapPin size={18} /> Ping Local AI Radar</>
+               )}
+            </button>
+            
           </div>
           <a
             href={mapLink}
@@ -806,6 +877,70 @@ export default function DashboardPage() {
         </div>
 
       </motion.div>
+
+      {/* ── SUCCESS TOAST ── */}
+      <AnimatePresence>
+         {showSafeToast && (
+            <motion.div 
+               initial={{ opacity: 0, y: 50, scale: 0.9 }} 
+               animate={{ opacity: 1, y: 0, scale: 1 }} 
+               exit={{ opacity: 0, scale: 0.9, y: 20 }}
+               className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700 font-bold text-sm whitespace-nowrap"
+            >
+               <CheckCircle2 size={18} className="text-emerald-400" />
+               Processed successfully. Conditions evaluated. 
+            </motion.div>
+         )}
+      </AnimatePresence>
+
+      {/* ── EMERGENCY VOTING MODAL ── */}
+      <AnimatePresence>
+         {showVotingModal && (
+            <motion.div 
+               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+               className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6"
+            >
+               <motion.div 
+                  initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+                  className="bg-white rounded-[2rem] p-8 max-w-lg w-full shadow-2xl border border-white relative overflow-hidden"
+               >
+                  <div className="absolute top-[-20%] right-[-10%] w-[300px] h-[300px] bg-red-400/10 rounded-full blur-[80px] pointer-events-none" />
+                  
+                  <div className="flex items-center gap-3 mb-6 relative z-10">
+                     <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center border border-red-100 shrink-0">
+                        <CloudRain size={24} strokeWidth={2.5} />
+                     </div>
+                     <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-500 bg-red-50 px-2 py-0.5 rounded border border-red-100/50 inline-block mb-1">Alert Triggered</div>
+                        <h2 className="text-xl font-black text-slate-900 tracking-tight">Disruption Detected</h2>
+                     </div>
+                  </div>
+
+                  <p className="text-[14px] text-slate-600 font-medium mb-8 leading-relaxed relative z-10">
+                     Our AI systems have detected a <strong className="text-red-500 font-black">{scanResult?.ai_analysis?.safety_probability}% danger probability</strong> localized at your coordinates due to extreme weather metrics ("{scanResult?.ai_analysis?.risk_level}"). 
+                     <br/><br/>
+                     Are you currently experiencing hazardous conditions on your deliveries?
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-3 relative z-10">
+                     <button 
+                        onClick={() => submitCrowdVote(true)}
+                        className="flex-1 bg-red-500 hover:bg-red-600 text-white font-black tracking-tight py-4 rounded-xl transition-colors shadow-lg shadow-red-500/20"
+                     >
+                        Confirm Hazard
+                     </button>
+                     <button 
+                        onClick={() => submitCrowdVote(false)}
+                        className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-900 font-black tracking-tight py-4 rounded-xl transition-colors border border-slate-200/50"
+                     >
+                        False Alarm
+                     </button>
+                  </div>
+               </motion.div>
+            </motion.div>
+         )}
+      </AnimatePresence>
+
     </div>
   );
 }
