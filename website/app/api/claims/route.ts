@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser } from '@/middleware/auth';
 import Claim from '@/models/Claim';
+import ClaimVoting from '@/models/ClaimVoting';
 import connectDB from '@/lib/db';
+import { getVotingWindow } from '@/lib/claimVoting';
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,7 +36,15 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    await Claim.create({
+    const votingCity = String(currentUser?.kyc?.city || '').trim();
+    if (!votingCity) {
+      return NextResponse.json(
+        { message: "KYC city is required before creating a claim for community voting" },
+        { status: 400 }
+      );
+    }
+
+    const claim = await Claim.create({
       userId: currentUser._id,
       reason,
       amount,
@@ -43,9 +53,27 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date()
     });
 
+    const { startTime, endTime } = getVotingWindow();
+    await ClaimVoting.create({
+      claimId: claim._id,
+      city: votingCity,
+      votes: [],
+      startTime,
+      endTime,
+      status: 'active',
+      result: { yesCount: 0, noCount: 0 },
+    });
+
     return NextResponse.json({ 
       message: "Claim submitted", 
-      status: "pending" 
+      status: "pending",
+      claimId: claim._id.toString(),
+      voting: {
+        status: 'active',
+        city: votingCity,
+        startTime,
+        endTime,
+      }
     }, { status: 201 });
 
   } catch (error: any) {
@@ -70,9 +98,17 @@ export async function GET(request: NextRequest) {
 
     const claims = await Claim.find({ userId: currentUser._id })
       .sort({ createdAt: -1 })
-      .select('reason amount status createdAt -_id');
+      .select('_id reason amount status createdAt');
 
-    return NextResponse.json(claims, { status: 200 });
+    const formattedClaims = claims.map((claim) => ({
+      id: claim._id.toString(),
+      reason: claim.reason,
+      amount: claim.amount,
+      status: claim.status,
+      createdAt: claim.createdAt,
+    }));
+
+    return NextResponse.json(formattedClaims, { status: 200 });
 
   } catch (error: any) {
     console.error('Claims GET Error:', error);

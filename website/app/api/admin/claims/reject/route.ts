@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateAdmin } from '@/middleware/auth';
 import Claim from '@/models/Claim';
+import ClaimVoting from '@/models/ClaimVoting';
 import connectDB from '@/lib/db';
+import { closeVotingIfExpired } from '@/lib/claimVoting';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,6 +31,14 @@ export async function POST(request: NextRequest) {
     
     if (!claim) {
       return NextResponse.json({ message: "Claim not found" }, { status: 404 });
+    }
+
+    const voting = await ClaimVoting.findOne({ claimId: claim._id });
+    if (voting) {
+      await closeVotingIfExpired(voting);
+      if (voting.status !== 'closed') {
+        return NextResponse.json({ message: "Voting is still active for this claim" }, { status: 400 });
+      }
     }
 
     if (claim.status === 'approved' || claim.status === 'rejected') {

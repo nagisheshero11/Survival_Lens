@@ -1,114 +1,77 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import {
-  Activity,
-  AlertCircle,
-  BadgeCheck,
-  CloudRain,
-  Loader2,
-  ShieldAlert,
-  ThumbsUp,
-} from "lucide-react";
+import { AlertCircle, BadgeCheck, Loader2, ThumbsDown, ThumbsUp, Vote } from "lucide-react";
 
-type Claim = {
-  id: string;
-  icon: typeof CloudRain;
-  color: string;
-  title: string;
-  desc: string;
-  risk: string;
-  status: string;
-  progress: number;
-  location: string;
-  severity: string;
-  details: string;
-  votes: number;
+type ClaimVoteItem = {
+  claimId: string;
+  reason: string;
+  amount: number;
+  claimStatus: "pending" | "approved" | "rejected";
+  claimCreatedAt: string;
+  votingCity: string;
+  votingStatus: "active" | "closed";
+  startTime: string;
+  endTime: string;
+  yesCount: number;
+  noCount: number;
+  canVote: boolean;
   hasVoted: boolean;
+  myVote: "yes" | "no" | null;
 };
-
-type IncidentApiItem = {
-  id: string;
-  sourceCity: string;
-  riskLevel: "WARNING" | "CRITICAL";
-  action: string;
-  safetyProbability: number;
-  weather: {
-    temperatureCelsius: number;
-    rainMmHr: number;
-    windspeedKmh: number;
-  };
-  votes: number;
-  hasVoted: boolean;
-};
-
-function mapIncidentToClaim(item: IncidentApiItem): Claim {
-  const isCritical = item.riskLevel === "CRITICAL";
-  const icon = item.weather.rainMmHr > 3 ? CloudRain : isCritical ? ShieldAlert : Activity;
-  const color = isCritical ? "red" : "orange";
-  const severity = isCritical ? "Critical" : "High Risk";
-
-  return {
-    id: item.id,
-    icon,
-    color,
-    title: `${item.riskLevel} weather disruption in ${item.sourceCity}`,
-    desc: `Rain ${item.weather.rainMmHr.toFixed(1)} mm/hr, wind ${item.weather.windspeedKmh.toFixed(1)} km/h, temp ${item.weather.temperatureCelsius.toFixed(1)} C.`,
-    risk: severity,
-    status: `${item.votes} votes`,
-    progress: Math.min(item.votes, 100),
-    location: item.sourceCity,
-    severity,
-    details: `AI action: ${item.action}. Safety probability: ${item.safetyProbability}%.`,
-    votes: item.votes,
-    hasVoted: item.hasVoted,
-  };
-}
 
 export default function VotingPage() {
-  const [claims, setClaims] = useState<Claim[]>([]);
-  const [activeTab, setActiveTab] = useState<"support" | "supported">("support");
-  const [selectedItem, setSelectedItem] = useState<Claim | null>(null);
+  const [items, setItems] = useState<ClaimVoteItem[]>([]);
+  const [activeTab, setActiveTab] = useState<"active" | "history">("active");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [votingId, setVotingId] = useState("");
+  const [success, setSuccess] = useState("");
+  const [votingActionByClaim, setVotingActionByClaim] = useState<Record<string, boolean>>({});
+  const [nowMs, setNowMs] = useState(Date.now());
 
-  const supportedClaims = useMemo(() => claims.filter((claim) => claim.hasVoted), [claims]);
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-  async function fetchIncidents() {
+  const activeItems = useMemo(
+    () => items.filter((item) => item.votingStatus === "active"),
+    [items]
+  );
+
+  const historyItems = useMemo(
+    () => items.filter((item) => item.votingStatus === "closed" || item.hasVoted),
+    [items]
+  );
+
+  async function fetchClaimVoting() {
     try {
       setError("");
-      const res = await fetch("/api/voting/incidents", { credentials: "include" });
+      const res = await fetch("/api/vote", { credentials: "include" });
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.message || "Failed to load incidents");
+        throw new Error(data?.message || "Failed to load claim voting");
       }
 
-      const mapped = (data as IncidentApiItem[]).map(mapIncidentToClaim);
-      setClaims(mapped);
+      setItems(Array.isArray(data) ? (data as ClaimVoteItem[]) : []);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unable to load voting incidents");
+      setError(err instanceof Error ? err.message : "Unable to load claim voting");
     } finally {
       setLoading(false);
     }
   }
 
-  async function runWeatherScanIfDue() {
+  async function castVote(claimId: string, vote: "yes" | "no") {
     try {
-      await fetch("/api/voting/scan-weather", { credentials: "include" });
-    } catch {
-      // Non-blocking; incidents endpoint still determines what to show.
-    }
-  }
-
-  async function castVote(claimId: string) {
-    try {
-      setVotingId(claimId);
-      const res = await fetch(`/api/voting/incidents/${claimId}/vote`, {
+      setError("");
+      setSuccess("");
+      setVotingActionByClaim((prev) => ({ ...prev, [claimId]: true }));
+      const res = await fetch("/api/vote", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({ claimId, vote }),
       });
       const data = await res.json();
 
@@ -116,39 +79,37 @@ export default function VotingPage() {
         throw new Error(data?.message || "Vote could not be recorded");
       }
 
-      setClaims((current) =>
-        current.map((claim) =>
-          claim.id === claimId
-            ? {
-                ...claim,
-                hasVoted: true,
-                votes: claim.votes + 1,
-                status: `${claim.votes + 1} votes`,
-                progress: Math.min(claim.votes + 1, 100),
-              }
-            : claim
-        )
-      );
+      setSuccess("Vote submitted successfully.");
+      await fetchClaimVoting();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unable to submit vote");
     } finally {
-      setVotingId("");
+      setVotingActionByClaim((prev) => ({ ...prev, [claimId]: false }));
     }
   }
 
   useEffect(() => {
-    const boot = async () => {
-      await runWeatherScanIfDue();
-      await fetchIncidents();
-    };
-
-    boot();
+    fetchClaimVoting();
   }, []);
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(value);
+
+  const formatDate = (value: string) =>
+    new Date(value).toLocaleDateString("en-IN", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
 
   return (
     <div className="p-8 lg:p-12 max-w-7xl mx-auto w-full relative min-h-full">
-      <div 
-        className="absolute top-[-5%] left-[-10%] bg-blue-400/5 rounded-full blur-[140px] pointer-events-none z-0 transition-opacity duration-1000" 
+      <div
+        className="absolute top-[-5%] left-[-10%] bg-blue-400/5 rounded-full blur-[140px] pointer-events-none z-0 transition-opacity duration-1000"
         style={{ width: "clamp(20rem, 40vw, 37.5rem)", height: "clamp(20rem, 40vw, 37.5rem)" }}
       />
 
@@ -159,7 +120,7 @@ export default function VotingPage() {
           </span>
         </div>
         <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-none mb-2">Voting Chamber</h1>
-        <p className="text-slate-500 font-medium">Validate community risk claims to trigger protective payouts.</p>
+        <p className="text-slate-500 font-medium">Community voting for claims happens here. Voting window is 2 minutes per claim.</p>
       </div>
 
       {error && (
@@ -169,223 +130,151 @@ export default function VotingPage() {
         </div>
       )}
 
-      <AnimatePresence>
-        {selectedItem && (
-          <motion.div className="fixed inset-y-0 left-64 right-0 z-[60] flex items-center justify-center px-4 py-6">
-            <motion.button
-              type="button"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-950/45 backdrop-blur-sm"
-              onClick={() => setSelectedItem(null)}
-              aria-label="Close claim details"
-            />
-
-            <motion.div
-              initial={{ opacity: 0, y: 24, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 24, scale: 0.98 }}
-              className="relative z-10 max-w-3xl rounded-[2rem] bg-white shadow-[0_30px_90px_rgba(15,23,42,0.22)] border border-slate-100 p-6 lg:p-8"
-            >
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400 mb-2">Complete Details</p>
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-5">{selectedItem.title}</h2>
-
-              <div className="grid sm:grid-cols-3 gap-4 mb-6">
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Severity</p>
-                  <p className="font-bold text-slate-900">{selectedItem.severity}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Location</p>
-                  <p className="font-bold text-slate-900">{selectedItem.location}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Status</p>
-                  <p className="font-bold text-slate-900">{selectedItem.status}</p>
-                </div>
-              </div>
-
-              <p className="text-sm leading-7 text-slate-600 font-medium mb-6">{selectedItem.details}</p>
-
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setSelectedItem(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {success && (
+        <div className="relative z-10 mb-6 bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-xl">
+          <p className="text-sm font-semibold">{success}</p>
+        </div>
+      )}
 
       <div className="relative z-10 flex border-b border-slate-200/60 mb-8 overflow-x-auto no-scrollbar">
-        {(["support", "supported"] as const).map((tab) => (
+        {(["active", "history"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`relative flex items-center gap-2 pb-4 px-4 mr-4 text-sm font-bold tracking-tight transition-colors whitespace-nowrap outline-none ${activeTab === tab ? "text-slate-900" : "text-slate-400 hover:text-slate-600"}`}
           >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            {tab === "support" && (
+            {tab === "active" ? "Active Voting" : "History"}
+            {tab === "active" && (
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-black ${activeTab === tab ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500"}`}
               >
-                {claims.length}
+                {activeItems.length}
               </span>
             )}
-            {tab === "supported" && (
+            {tab === "history" && (
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-black ${activeTab === tab ? "bg-emerald-500 text-white" : "bg-emerald-50 text-emerald-600"}`}
               >
-                {supportedClaims.length}
+                {historyItems.length}
               </span>
-            )}
-
-            {activeTab === tab && (
-              <motion.div
-                layoutId="votingTab"
-                className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-slate-900 rounded-t-full"
-                transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
-              />
             )}
           </button>
         ))}
       </div>
 
       <div className="relative z-10 min-h-[400px]">
-        <AnimatePresence mode="wait">
-          {activeTab === "support" && (
-            <motion.div
-              key="support"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8"
-            >
-              {loading ? (
-                <div className="col-span-full flex flex-col items-center justify-center py-16 text-slate-500">
-                  <Loader2 size={28} className="animate-spin mb-3 text-blue-500" />
-                  <p className="text-sm font-bold">Loading active incidents...</p>
-                </div>
-              ) : claims.length === 0 ? (
-                <div className="col-span-full bg-white/80 backdrop-blur-xl rounded-[2rem] p-10 border border-white text-center">
-                  <p className="text-slate-900 font-black text-lg tracking-tight">No active weather incidents nearby</p>
-                  <p className="text-slate-500 text-sm mt-2">The scan runs every 2 hours and creates votes for nearby users when risk spikes.</p>
-                </div>
-              ) : (
-              claims.map((claim) => (
+        {loading ? (
+          <div className="col-span-full flex flex-col items-center justify-center py-16 text-slate-500">
+            <Loader2 size={28} className="animate-spin mb-3 text-blue-500" />
+            <p className="text-sm font-bold">Loading claim voting...</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+            {(activeTab === "active" ? activeItems : historyItems).map((item) => {
+              const remainingSeconds = Math.max(
+                0,
+                Math.floor((new Date(item.endTime).getTime() - nowMs) / 1000)
+              );
+              const totalVotes = item.yesCount + item.noCount;
+              const yesPercent = totalVotes ? Math.round((item.yesCount / totalVotes) * 100) : 0;
+
+              return (
                 <div
-                  key={claim.id}
-                  className="bg-white/80 backdrop-blur-xl rounded-[2rem] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex flex-col justify-between group hover:shadow-[0_20px_50px_rgba(0,0,0,0.06)] transition-all duration-300"
+                  key={item.claimId}
+                  className="bg-white/80 backdrop-blur-xl rounded-[2rem] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex flex-col justify-between"
                 >
                   <div>
-                    <div className="flex items-start justify-between mb-5">
-                      <div className="w-12 h-12 rounded-[1.25rem] bg-slate-50 flex items-center justify-center flex-shrink-0 border border-slate-100 group-hover:scale-110 transition-transform">
-                        <claim.icon size={22} className={`text-${claim.color}-500`} strokeWidth={2.5} />
-                      </div>
-                      <span className={`bg-${claim.color}-50 text-${claim.color}-600 border border-${claim.color}-100/50 text-[9px] uppercase tracking-widest font-black px-2.5 py-1 rounded-lg shrink-0`}>
-                        {claim.risk}
+                    <div className="flex items-start justify-between mb-4 gap-3">
+                      <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+                        <Vote size={12} />
+                        Claim Vote
+                      </span>
+                      <span
+                        className={`text-[10px] px-2.5 py-1 rounded-lg uppercase tracking-widest font-black border ${
+                          item.votingStatus === "active"
+                            ? "bg-orange-50 text-orange-700 border-orange-100"
+                            : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                        }`}
+                      >
+                        {item.votingStatus}
                       </span>
                     </div>
 
-                    <h3 className="text-[17px] font-black text-slate-900 leading-tight mb-2 tracking-tight">{claim.title}</h3>
-                    <p className="text-[13px] text-slate-500 font-medium mb-6 leading-relaxed line-clamp-3">{claim.desc}</p>
-                  </div>
+                    <p className="text-[15px] font-black text-slate-900 leading-snug line-clamp-3 mb-3">{item.reason}</p>
+                    <p className="text-xs text-slate-500 font-semibold mb-2">City: {item.votingCity}</p>
+                    <p className="text-xs text-slate-500 font-semibold mb-3">Claimed: {formatDate(item.claimCreatedAt)}</p>
 
-                  <div>
-                    <div className="bg-slate-50/80 rounded-2xl p-4 mb-5 border border-slate-100/60">
-                      <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                        <span>Consensus Status</span>
-                        <span className="text-slate-900">{claim.status}</span>
-                      </div>
-                      <div className="w-full bg-slate-200/60 rounded-full h-1.5 overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${claim.progress}%` }}
-                          transition={{ duration: 1, delay: 0.2 }}
-                          className="bg-slate-900 h-full rounded-full"
-                        />
+                    <div className="rounded-xl bg-slate-50 border border-slate-100 p-3 mb-4">
+                      <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">Voting Score</p>
+                      <p className="text-sm font-bold text-slate-800 mb-2">Yes {item.yesCount} | No {item.noCount}</p>
+                      <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${yesPercent}%` }} />
                       </div>
                     </div>
 
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => setSelectedItem(claim)}
-                        className="w-full flex-1 flex items-center justify-center bg-white border border-slate-200 hover:border-slate-300 text-slate-600 font-bold py-3.5 rounded-2xl transition-all text-[13px] shadow-sm"
-                      >
-                        Details
-                      </button>
-                      <button
-                        onClick={() => castVote(claim.id)}
-                        disabled={claim.hasVoted || votingId === claim.id}
-                        className={`w-full flex-1 flex items-center justify-center gap-2 text-white font-bold py-3.5 rounded-2xl shadow-lg transition-all text-[13px] ${
-                          claim.hasVoted
-                            ? "bg-emerald-600 shadow-emerald-600/20"
-                            : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/20 hover:-translate-y-0.5"
-                        } ${(votingId === claim.id || claim.hasVoted) ? "opacity-80 cursor-not-allowed" : ""}`}
-                      >
-                        {votingId === claim.id ? <Loader2 size={16} className="animate-spin" /> : <ThumbsUp size={16} strokeWidth={2.5} />}
-                        {claim.hasVoted ? "Supported" : "Support"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))) }
-            </motion.div>
-          )}
-
-          {activeTab === "supported" && (
-            <motion.div
-              key="supported"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8"
-            >
-              {supportedClaims.map((claim) => (
-                <div
-                  key={claim.id}
-                  className="bg-white/60 backdrop-blur-xl rounded-[2rem] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.02)] border border-white flex flex-col justify-between group transition-all duration-300"
-                >
-                  <div>
-                    <div className="flex items-start justify-between mb-5">
-                      <div className="w-12 h-12 rounded-[1.25rem] bg-emerald-50 flex items-center justify-center flex-shrink-0 border border-emerald-100/50">
-                        <claim.icon size={22} className={`text-${claim.color}-500`} strokeWidth={2.5} />
-                      </div>
-                      <span className="bg-emerald-50 text-emerald-600 border border-emerald-100/50 text-[9px] uppercase tracking-widest font-black px-2.5 py-1 rounded-lg shrink-0">
-                        Verified
-                      </span>
-                    </div>
-
-                    <h3 className="text-[17px] font-black text-slate-900 leading-tight mb-2 tracking-tight">{claim.title}</h3>
-                    <p className="text-[13px] text-slate-500 font-medium mb-6 leading-relaxed line-clamp-3">{claim.desc}</p>
+                    <p className="text-sm font-black text-slate-900 mb-1">{formatCurrency(item.amount)}</p>
+                    <p className="text-xs text-slate-500 font-semibold">
+                      {item.votingStatus === "active"
+                        ? `Ends in ${remainingSeconds}s`
+                        : "Voting closed, waiting for admin decision"}
+                    </p>
+                    {item.hasVoted && (
+                      <p className="text-xs text-blue-600 font-bold mt-1">You voted: {item.myVote}</p>
+                    )}
                   </div>
 
-                  <div className="pt-4 border-t border-slate-100/60 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex justify-center items-center">
-                      <BadgeCheck size={16} strokeWidth={3} />
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-bold text-slate-900 leading-none mb-0.5">Your vote was recorded</p>
-                      <p className="text-[9px] text-slate-400 tracking-widest uppercase font-black">Consensus Executed</p>
-                    </div>
+                  <div className="mt-5 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => castVote(item.claimId, "yes")}
+                      disabled={!item.canVote || !!votingActionByClaim[item.claimId]}
+                      className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider border transition-colors ${
+                        item.canVote && !votingActionByClaim[item.claimId]
+                          ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                          : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                      }`}
+                    >
+                      {votingActionByClaim[item.claimId] ? <Loader2 size={14} className="animate-spin" /> : <ThumbsUp size={14} />}
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => castVote(item.claimId, "no")}
+                      disabled={!item.canVote || !!votingActionByClaim[item.claimId]}
+                      className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider border transition-colors ${
+                        item.canVote && !votingActionByClaim[item.claimId]
+                          ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                          : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                      }`}
+                    >
+                      {votingActionByClaim[item.claimId] ? <Loader2 size={14} className="animate-spin" /> : <ThumbsDown size={14} />}
+                      No
+                    </button>
                   </div>
                 </div>
-              ))}
-              {!supportedClaims.length && (
-                <div className="col-span-full bg-white/80 backdrop-blur-xl rounded-[2rem] p-10 border border-white text-center">
-                  <p className="text-slate-900 font-black text-lg tracking-tight">No supported incidents yet</p>
-                  <p className="text-slate-500 text-sm mt-2">Support active incidents to see your vote history here.</p>
-                </div>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+              );
+            })}
+
+            {(activeTab === "active" ? activeItems : historyItems).length === 0 && (
+              <div className="col-span-full bg-white/80 backdrop-blur-xl rounded-[2rem] p-10 border border-white text-center">
+                {activeTab === "active" ? (
+                  <>
+                    <p className="text-slate-900 font-black text-lg tracking-tight">No active claim voting right now</p>
+                    <p className="text-slate-500 text-sm mt-2">Active claim votes in your city will appear here for 2 minutes.</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 mb-3">
+                      <BadgeCheck size={18} />
+                    </div>
+                    <p className="text-slate-900 font-black text-lg tracking-tight">No voting history yet</p>
+                    <p className="text-slate-500 text-sm mt-2">Once you vote or votes close, they will appear here.</p>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
