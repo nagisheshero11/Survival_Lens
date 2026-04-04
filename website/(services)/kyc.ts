@@ -12,6 +12,10 @@ export interface IKycData {
   pan: string;
   photo: string;
   city: string;
+  location?: string;
+  serviceZone?: string;
+  zone?: string;
+  population?: number;
   age: number | undefined;
   avgWeeklyIncome: number | undefined;
   avgWorkingHours: number | undefined;

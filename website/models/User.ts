@@ -34,6 +34,10 @@ export interface IKyc {
   pan: string;
   photo: string;
   city: string;
+  location?: string;
+  serviceZone?: string;
+  zone?: string;
+  population?: number;
   latitude?: number;
   longitude?: number;
   age?: number;
@@ -59,6 +63,10 @@ const kycSchema = new Schema<IKyc>({
   pan: { type: String, default: '' },
   photo: { type: String, default: '' },
   city: { type: String, default: '' },
+  location: { type: String, default: '' },
+  serviceZone: { type: String, default: '' },
+  zone: { type: String, default: '' },
+  population: { type: Number },
   latitude: { type: Number },
   longitude: { type: Number },
   age: { type: Number },

@@ -21,6 +21,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getKycData } from "@/(services)/kyc";
 
 export default function DashboardPage() {
   const toTrimmedString = (value: unknown) => {
@@ -33,6 +34,7 @@ export default function DashboardPage() {
     aadhaar: "",
     pan: "",
     photo: "",
+    city: "",
     location: "",
     age: "",
     company: "",
@@ -119,7 +121,12 @@ export default function DashboardPage() {
     if (savedKyc) {
       try {
         const parsed = JSON.parse(savedKyc);
-        setKycData({ ...defaultKycData, ...(parsed || {}) });
+        setKycData({
+          ...defaultKycData,
+          ...(parsed || {}),
+          city: parsed?.city || "",
+          location: parsed?.location || "",
+        });
       } catch {}
     }
 
@@ -201,6 +208,27 @@ export default function DashboardPage() {
           if (meData?.user?.kyc?.photo?.trim()) {
             setAvatarUrl(meData.user.kyc.photo);
           }
+        }
+
+        try {
+          const liveKyc = await getKycData();
+          if (liveKyc) {
+            const normalizedKyc = {
+              ...defaultKycData,
+              ...(liveKyc || {}),
+              city: liveKyc.city || "",
+              location: liveKyc.location || "",
+            };
+            setKycData(normalizedKyc);
+
+            if (liveKyc.photo?.trim()) {
+              setAvatarUrl(liveKyc.photo);
+            }
+
+            localStorage.setItem("survivalLensKyc", JSON.stringify(liveKyc));
+          }
+        } catch {
+          // Fall back to the cached local KYC payload when the API is unavailable.
         }
 
         if (navigator.geolocation) {
@@ -361,23 +389,62 @@ export default function DashboardPage() {
 
   const mockProfile = profileData?.mockProfile || null;
   const userDetails = profileData?.userDetails || null;
+  const kycCompanies = Array.isArray((kycData as any)?.companies) ? (kycData as any).companies : [];
+  const linkedKycCompanies = kycCompanies.filter((item: any) => toTrimmedString(item?.company));
+  const kycCompanyNames = kycCompanies
+    .map((item: any) => toTrimmedString(item?.company))
+    .filter(Boolean)
+    .join(", ");
+  const firstCompanyRecord = kycCompanies.find((item: any) => toTrimmedString(item?.company));
+  const firstPartnerRecord = kycCompanies.find((item: any) => toTrimmedString(item?.partnerId));
 
   const fullName = toTrimmedString(userDetails?.fullName) || localUserName || "User";
   const initials = fullName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
   const accountLevel = userDetails?.accountLevel || "Pro";
-  const companies = typeof mockProfile?.company === "string" ? mockProfile.company : "Uber, Swiggy";
-  const linkedAppsCount = companies.split(",").map((item: string) => item.trim()).filter(Boolean).length;
-  const primaryCompany = toTrimmedString(kycData.company) || companies.split(",")[0]?.trim() || "Not set";
-  const partnerRef = toTrimmedString(kycData.partnerId) || "Not set";
-  const serviceZone = mockProfile?.zone || "Not set";
-  const serviceCity = mockProfile?.city || "Not set";
+  const companies = kycCompanyNames || (typeof mockProfile?.company === "string" ? mockProfile.company : "Uber, Swiggy");
+  const linkedAppsCount = linkedKycCompanies.length > 0
+    ? linkedKycCompanies.length
+    : companies.split(",").map((item: string) => item.trim()).filter(Boolean).length;
+  const primaryCompany =
+    toTrimmedString(kycData.company) ||
+    toTrimmedString(firstCompanyRecord?.company) ||
+    companies.split(",")[0]?.trim() ||
+    "Not set";
+  const partnerRef =
+    toTrimmedString(kycData.partnerId) ||
+    toTrimmedString(firstPartnerRecord?.partnerId) ||
+    "Not set";
+  const enrolledAccounts = linkedKycCompanies.length > 0
+    ? linkedKycCompanies.map((item: any) => ({
+        company: toTrimmedString(item?.company) || "Not set",
+        partnerId: toTrimmedString(item?.partnerId) || "Not set",
+      }))
+    : [{ company: primaryCompany, partnerId: partnerRef }];
+  const serviceCity =
+    toTrimmedString((kycData as any)?.city) ||
+    toTrimmedString(kycData.location) ||
+    mockProfile?.city ||
+    "Not set";
+  const zoneFromLocation = (() => {
+    const locationValue = toTrimmedString(kycData.location).toLowerCase();
+    if (locationValue === "urban") return "Urban";
+    if (locationValue === "semi urban" || locationValue === "semi-urban") return "Semi Urban";
+    if (locationValue === "rural") return "Rural";
+    return "";
+  })();
+  const serviceZone =
+    toTrimmedString((kycData as any)?.zone) ||
+    toTrimmedString((kycData as any)?.serviceZone) ||
+    zoneFromLocation ||
+    mockProfile?.zone ||
+    "Not set";
   const rawWeeklyIncome = toTrimmedString(kycData.avgWeeklyIncome);
   const weeklyIncomeLabel = rawWeeklyIncome
     ? (rawWeeklyIncome.startsWith("₹") ? rawWeeklyIncome : `₹${rawWeeklyIncome}`)
     : "Not set";
   const trimmedWorkingHours = toTrimmedString(kycData.avgWorkingHours);
   const workingHoursLabel = trimmedWorkingHours ? `${trimmedWorkingHours} hrs/wk` : "Not set";
-  const locationQuery = [mockProfile?.zone, mockProfile?.city].filter(Boolean).join(", ") || "India";
+  const locationQuery = Array.from(new Set([serviceZone, serviceCity].filter((item) => item && item !== "Not set"))).join(", ") || "India";
   const kycStatus = (kycData as any)?.status;
   const isKycComplete = completionProps.percentage >= 100 || kycStatus === "approved";
   const kycStatusLabel = isKycComplete ? "KYC Verified" : `KYC ${completionProps.percentage}%`;
@@ -463,7 +530,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <button 
-            onClick={() => router.push("/dashboard/profile/kyc")}
+            onClick={() => router.push("/dashboard/profile/kyc?source=overview&focus=incomplete")}
             className="w-full md:w-auto bg-slate-900 hover:bg-black text-white font-black px-6 py-3 rounded-xl shadow-lg shadow-slate-900/10 hover:-translate-y-0.5 transition-all text-[12px] flex items-center justify-center gap-2 group shrink-0"
           >
             <Fingerprint size={16} />
@@ -508,13 +575,16 @@ export default function DashboardPage() {
             </div>
             <p className="mt-2 text-[11px] text-slate-500 font-bold tracking-tight">{locationQuery}</p>
             <div className="mt-3 w-full rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2 grid grid-cols-2 gap-x-3 gap-y-2 text-left">
-              <div>
-                <p className="text-[9px] uppercase font-black text-slate-300 tracking-[0.2em]">Company</p>
-                <p className="text-[11px] font-bold text-slate-700 truncate">{primaryCompany}</p>
-              </div>
-              <div>
-                <p className="text-[9px] uppercase font-black text-slate-300 tracking-[0.2em]">Partner ID</p>
-                <p className="text-[11px] font-bold text-slate-700 truncate">{partnerRef}</p>
+              <div className="col-span-2">
+                <p className="text-[9px] uppercase font-black text-slate-300 tracking-[0.2em] mb-1">Enrolled Accounts</p>
+                <div className="space-y-1.5">
+                  {enrolledAccounts.map((account: { company: string; partnerId: string }, index: number) => (
+                    <div key={`${account.company}-${account.partnerId}-${index}`} className="flex items-center justify-between rounded-md bg-white/70 border border-slate-100 px-2 py-1">
+                      <p className="text-[11px] font-bold text-slate-700 truncate pr-3">{account.company}</p>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.08em] truncate">{account.partnerId}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div>
                 <p className="text-[9px] uppercase font-black text-slate-300 tracking-[0.2em]">Service Zone</p>
