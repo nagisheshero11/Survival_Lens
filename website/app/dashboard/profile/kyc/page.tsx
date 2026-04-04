@@ -48,6 +48,41 @@ export default function KycProcessPage() {
   const [companies, setCompanies] = useState<IKycCompany[]>([]);
   const [globalCategory, setGlobalCategory] = useState<string>("");
 
+  const validation = useMemo(() => {
+    const aadhaarDigits = kycData.aadhaar.replace(/\D/g, "");
+    const panValue = kycData.pan.toUpperCase().trim();
+    const ageValue = Number(kycData.age);
+    const incomeValue = Number(kycData.avgWeeklyIncome);
+    const hoursValue = Number(kycData.avgWorkingHours);
+
+    return {
+      aadhaarOk: /^\d{12}$/.test(aadhaarDigits),
+      panOk: /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panValue),
+      ageOk: Number.isInteger(ageValue) && ageValue >= 18 && ageValue <= 99,
+      locationOk: Boolean(kycData.location),
+      incomeOk: Number.isFinite(incomeValue) && incomeValue > 0,
+      hoursOk: Number.isFinite(hoursValue) && hoursValue > 0 && hoursValue <= 99,
+      categoryOk: Boolean(globalCategory),
+      photoOk: Boolean(kycData.photo),
+      companyOk: companies.some((c) => Boolean(c.company.trim())),
+      partnerOk: companies.some((c) => c.partnerId.trim().length >= 4),
+      screenshotOk: companies.some((c) => Boolean(c.dashboardScreenshot)),
+    };
+  }, [kycData, companies, globalCategory]);
+
+  const isBasicKycReady =
+    validation.aadhaarOk &&
+    validation.panOk &&
+    validation.ageOk &&
+    validation.locationOk &&
+    validation.incomeOk &&
+    validation.hoursOk &&
+    validation.categoryOk &&
+    validation.photoOk &&
+    validation.companyOk &&
+    validation.partnerOk &&
+    validation.screenshotOk;
+
   // Seamless Load Tracking locally connecting explicitly against GET /api/kyc
   useEffect(() => {
     const fetchData = async () => {
@@ -153,7 +188,7 @@ export default function KycProcessPage() {
   // Unified save handler parsing local vs. remote arrays seamlessly
   const handleSaveKyc = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newStatus = completionProps.percentage === 100 ? "pending" : "partial";
+    const newStatus = isBasicKycReady ? "pending" : "partial";
     
     // Explicitly formatting pure array excluding _id and verified
     const formattedCompanies = companies
@@ -194,7 +229,17 @@ export default function KycProcessPage() {
   };
 
   const handleChange = (field: string, value: string) => {
-    setKycData(prev => ({ ...prev, [field]: value }));
+    let nextValue = value;
+
+    if (field === "aadhaar" || field === "age" || field === "avgWeeklyIncome" || field === "avgWorkingHours") {
+      nextValue = value.replace(/\D/g, "");
+    }
+
+    if (field === "pan") {
+      nextValue = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    }
+
+    setKycData(prev => ({ ...prev, [field]: nextValue }));
   };
 
   const handleGlobalCategoryChange = (value: string) => {
@@ -205,7 +250,7 @@ export default function KycProcessPage() {
   const updateCompany = (id: string, field: keyof IKycCompany, value: string) => {
     setCompanies(prev => prev.map(c => {
       if (c.id === id) {
-        return { ...c, [field]: value };
+        return { ...c, [field]: field === "partnerId" ? value.toUpperCase() : value };
       }
       return c;
     }));
@@ -293,48 +338,55 @@ export default function KycProcessPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-8">
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Aadhaar ID</label>
-              <input type="text" value={kycData.aadhaar} onChange={e => handleChange('aadhaar', e.target.value)} placeholder="0000 0000 0000 0000" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
+              <input type="text" value={kycData.aadhaar} onChange={e => handleChange('aadhaar', e.target.value)} maxLength={12} inputMode="numeric" placeholder="0000 0000 0000 0000" className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none ${validation.aadhaarOk || !kycData.aadhaar ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`} />
+              <p className={`mt-2 text-[11px] font-bold ${validation.aadhaarOk || !kycData.aadhaar ? 'text-slate-400' : 'text-red-500'}`}>Required: exactly 12 digits, numbers only.</p>
             </div>
             
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">PAN Number</label>
-              <input type="text" value={kycData.pan} onChange={e => handleChange('pan', e.target.value)} placeholder="ABCDE1234F" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none uppercase" />
+              <input type="text" value={kycData.pan} onChange={e => handleChange('pan', e.target.value)} maxLength={10} placeholder="ABCDE1234F" className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none uppercase ${validation.panOk || !kycData.pan ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`} />
+              <p className={`mt-2 text-[11px] font-bold ${validation.panOk || !kycData.pan ? 'text-slate-400' : 'text-red-500'}`}>Required: 10 characters in PAN format (AAAAA1234A).</p>
             </div>
 
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Age</label>
-              <input type="number" value={kycData.age} onChange={e => handleChange('age', e.target.value)} placeholder="e.g. 28" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
+              <input type="number" min={18} max={99} value={kycData.age} onChange={e => handleChange('age', e.target.value)} placeholder="e.g. 28" className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none ${validation.ageOk || !kycData.age ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`} />
+              <p className={`mt-2 text-[11px] font-bold ${validation.ageOk || !kycData.age ? 'text-slate-400' : 'text-red-500'}`}>Required: 18 years or older.</p>
             </div>
             
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Geopolitical Location</label>
-              <select value={kycData.location} onChange={e => handleChange('location', e.target.value)} className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 transition-all outline-none appearance-none">
+              <select value={kycData.location} onChange={e => handleChange('location', e.target.value)} className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 transition-all outline-none appearance-none ${validation.locationOk ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`}>
                 <option value="">Select Zone...</option>
                 <option value="Metropolitan">Metropolitan</option>
                 <option value="Urban">Urban</option>
                 <option value="Semi-Urban">Semi-Urban</option>
                 <option value="Rural">Rural</option>
               </select>
+              <p className={`mt-2 text-[11px] font-bold ${validation.locationOk ? 'text-slate-400' : 'text-red-500'}`}>Required: choose your operating zone.</p>
             </div>
 
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Avg Weekly Income (₹)</label>
-              <input type="number" value={kycData.avgWeeklyIncome} onChange={e => handleChange('avgWeeklyIncome', e.target.value)} placeholder="e.g. 12000" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
+              <input type="number" min={1} value={kycData.avgWeeklyIncome} onChange={e => handleChange('avgWeeklyIncome', e.target.value)} placeholder="e.g. 12000" className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none ${validation.incomeOk || !kycData.avgWeeklyIncome ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`} />
+              <p className={`mt-2 text-[11px] font-bold ${validation.incomeOk || !kycData.avgWeeklyIncome ? 'text-slate-400' : 'text-red-500'}`}>Required: enter a positive weekly amount.</p>
             </div>
             
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Avg Weekly Hours</label>
-              <input type="number" value={kycData.avgWorkingHours} onChange={e => handleChange('avgWorkingHours', e.target.value)} placeholder="e.g. 45" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
+              <input type="number" min={1} max={99} value={kycData.avgWorkingHours} onChange={e => handleChange('avgWorkingHours', e.target.value)} placeholder="e.g. 45" className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none ${validation.hoursOk || !kycData.avgWorkingHours ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`} />
+              <p className={`mt-2 text-[11px] font-bold ${validation.hoursOk || !kycData.avgWorkingHours ? 'text-slate-400' : 'text-red-500'}`}>Required: enter weekly working hours greater than 0.</p>
             </div>
 
             <div className="md:col-span-2 border-t border-slate-100 pt-8 mt-2">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Platform Category</label>
-              <select value={globalCategory} onChange={e => handleGlobalCategoryChange(e.target.value)} className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 transition-all outline-none appearance-none">
+              <select value={globalCategory} onChange={e => handleGlobalCategoryChange(e.target.value)} className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 transition-all outline-none appearance-none ${validation.categoryOk ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`}>
                 <option value="">Select Strategy Sector...</option>
                 {ALLOWED_CATEGORIES.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
+              <p className={`mt-2 text-[11px] font-bold ${validation.categoryOk ? 'text-slate-400' : 'text-red-500'}`}>Required: choose one platform strategy sector.</p>
             </div>
 
             <div className="md:col-span-2 border-t border-slate-100 pt-8 mt-2">
@@ -342,6 +394,7 @@ export default function KycProcessPage() {
                <button type="button" onClick={() => handleGlobalMockUpload('photo')} className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight ${kycData.photo ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
                  {kycData.photo ? <><CheckCircle2 size={18} /> Photographic ID Secured</> : <><UploadCloud size={18} /> Upload Authentic Photo</>}
                </button>
+              <p className={`mt-2 text-[11px] font-bold ${validation.photoOk ? 'text-slate-400' : 'text-red-500'}`}>Required: photo evidence must be attached.</p>
             </div>
           </div>
         </div>
@@ -390,11 +443,13 @@ export default function KycProcessPage() {
                          <option key={cName} value={cName}>{cName}</option>
                       ))}
                     </select>
+                    <p className={`mt-2 text-[11px] font-bold ${company.company ? 'text-slate-400' : 'text-red-500'}`}>Required: choose one company after selecting a category.</p>
                   </div>
 
                   <div className="md:col-span-2">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Partner / Driver ID Configuration</label>
-                    <input type="text" value={company.partnerId} onChange={e => updateCompany(company.id, 'partnerId', e.target.value)} placeholder="e.g. DRIVER-9921" className="w-full px-5 py-4 bg-slate-50/80 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none" />
+                    <input type="text" value={company.partnerId} onChange={e => updateCompany(company.id, 'partnerId', e.target.value)} placeholder="e.g. DRIVER-9921" className={`w-full px-5 py-4 bg-slate-50/80 border focus:bg-white focus:ring-4 rounded-2xl text-[14px] font-black text-slate-900 placeholder-slate-300 transition-all outline-none ${company.partnerId.trim().length >= 4 ? 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10' : 'border-red-200 focus:border-red-500 focus:ring-red-500/10'}`} />
+                    <p className={`mt-2 text-[11px] font-bold ${company.partnerId.trim().length >= 4 ? 'text-slate-400' : 'text-red-500'}`}>Required: minimum 4 characters for partner/driver ID.</p>
                   </div>
 
                   <div className="md:col-span-2 pt-2">
@@ -402,6 +457,7 @@ export default function KycProcessPage() {
                      <button type="button" onClick={() => handleCompanyMockUpload(company.id)} className={`w-full flex items-center justify-center gap-2 py-6 rounded-2xl border-2 border-dashed transition-all font-black tracking-tight ${company.dashboardScreenshot ? "border-emerald-500 bg-emerald-50/50 text-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-slate-300 bg-slate-50/50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"}`}>
                        {company.dashboardScreenshot ? <><CheckCircle2 size={18} /> Earnings Screenshot Secured</> : <><UploadCloud size={18} /> Upload Authentic Gig History Proof</>}
                      </button>
+                    <p className={`mt-2 text-[11px] font-bold ${company.dashboardScreenshot ? 'text-slate-400' : 'text-red-500'}`}>Required: attach dashboard evidence for this company.</p>
                   </div>
                 </div>
               </motion.div>
@@ -416,11 +472,15 @@ export default function KycProcessPage() {
            </p>
            
            <button 
-              disabled={(!completionProps.percentage || isNaN(completionProps.percentage)) && false } 
+              disabled={!isBasicKycReady || isLoading}
               type="submit" 
-              className="w-full md:w-auto bg-slate-900 hover:bg-black text-white px-10 font-black py-4 rounded-2xl shadow-xl shadow-slate-900/10 hover:-translate-y-0.5 transition-all text-sm group flex items-center justify-center gap-2"
+              className={`w-full md:w-auto px-10 font-black py-4 rounded-2xl shadow-xl shadow-slate-900/10 transition-all text-sm group flex items-center justify-center gap-2 ${
+                isBasicKycReady && !isLoading
+                  ? 'bg-slate-900 hover:bg-black text-white hover:-translate-y-0.5'
+                  : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+              }`}
             >
-            {completionProps.percentage === 100 ? "Submit Complete Multisig Authentication" : "Save Partial Configurations Securely"}
+            {isBasicKycReady ? "Submit Complete Multisig Authentication" : "Complete All Required Fields"}
             <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
