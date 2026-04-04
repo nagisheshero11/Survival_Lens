@@ -3,21 +3,40 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getClaims } from "@/admin-services/claim.service";
+import { approveClaim, getClaims, rejectClaim } from "@/admin-services/claim.service";
 import { getErrorMessage, isUnauthorizedError } from "@/admin-services/error";
 import type { Claim } from "@/admin-services/types";
+
+function normalizeStatus(status?: string): "pending" | "approved" | "rejected" {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "approved" || normalized === "rejected") return normalized;
+  return "pending";
+}
+
+function statusBadge(status: "pending" | "approved" | "rejected") {
+  if (status === "approved") {
+    return "bg-emerald-50 text-emerald-700 border border-emerald-200";
+  }
+  if (status === "rejected") {
+    return "bg-red-50 text-red-700 border border-red-200";
+  }
+  return "bg-amber-50 text-amber-700 border border-amber-200";
+}
 
 export default function AdminClaimsPage() {
   const router = useRouter();
   const [claims, setClaims] = useState<Claim[]>([]);
   const [status, setStatus] = useState("");
   const [userId, setUserId] = useState("");
+  const [actionByClaim, setActionByClaim] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const loadClaims = async () => {
     try {
       setError("");
+      setSuccess("");
       const data = await getClaims({ status: status || undefined, userId: userId || undefined });
       setClaims(data);
     } catch (err) {
@@ -28,6 +47,39 @@ export default function AdminClaimsPage() {
       setError(getErrorMessage(err, "Failed to load claims"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const runAction = async (claim: Claim, action: "approve" | "reject") => {
+    const currentStatus = normalizeStatus(claim.status);
+    if (currentStatus !== "pending") {
+      return;
+    }
+
+    setActionByClaim((prev) => ({ ...prev, [claim.id]: true }));
+    setError("");
+    setSuccess("");
+
+    try {
+      if (action === "approve") {
+        await approveClaim(claim.id);
+        setSuccess(`Claim ${claim.id} approved.`);
+        setClaims((prev) => prev.map((item) => (item.id === claim.id ? { ...item, status: "approved" } : item)));
+      } else {
+        await rejectClaim(claim.id);
+        setSuccess(`Claim ${claim.id} rejected.`);
+        setClaims((prev) => prev.map((item) => (item.id === claim.id ? { ...item, status: "rejected" } : item)));
+      }
+
+      await loadClaims();
+    } catch (err) {
+      if (isUnauthorizedError(err)) {
+        router.replace("/v1/admin/auth/login");
+        return;
+      }
+      setError(getErrorMessage(err, "Action failed"));
+    } finally {
+      setActionByClaim((prev) => ({ ...prev, [claim.id]: false }));
     }
   };
 
@@ -54,6 +106,7 @@ export default function AdminClaimsPage() {
       </div>
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
+      {success && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">{success}</div>}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="min-w-full text-sm">
@@ -78,9 +131,37 @@ export default function AdminClaimsPage() {
                   <td className="px-4 py-3 font-semibold text-slate-900">{claim.id}</td>
                   <td className="px-4 py-3 text-slate-600">{claim.userId}</td>
                   <td className="px-4 py-3 text-slate-600">INR {claim.amount.toLocaleString("en-IN")}</td>
-                  <td className="px-4 py-3 text-slate-600">{claim.status}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    <span
+                      className={`inline-flex rounded-lg px-2 py-1 text-xs font-black uppercase tracking-wider ${statusBadge(normalizeStatus(claim.status))}`}
+                    >
+                      {normalizeStatus(claim.status)}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-slate-600">{claim.createdAt}</td>
-                  <td className="px-4 py-3"><Link href={`/v1/admin/claims/${claim.id}`} className="font-bold text-blue-600 hover:text-blue-700">View</Link></td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Link href={`/v1/admin/claims/${claim.id}`} className="font-bold text-blue-600 hover:text-blue-700">View</Link>
+                      {normalizeStatus(claim.status) === "pending" ? (
+                        <>
+                          <button
+                            onClick={() => runAction(claim, "approve")}
+                            disabled={!!actionByClaim[claim.id]}
+                            className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                          >
+                            {actionByClaim[claim.id] ? "..." : "Approve"}
+                          </button>
+                          <button
+                            onClick={() => runAction(claim, "reject")}
+                            disabled={!!actionByClaim[claim.id]}
+                            className="rounded-lg bg-red-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+                          >
+                            {actionByClaim[claim.id] ? "..." : "Reject"}
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                  </td>
                 </tr>
               ))
             )}
