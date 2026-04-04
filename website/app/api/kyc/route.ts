@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     
     // Accept any subset of scalar KYC fields
     const configScalarFields = [
-      'aadhaar', 'pan', 'photo', 'city', 'age', 
+      'aadhaar', 'pan', 'photo', 'city', 'latitude', 'longitude', 'age', 
       'avgWeeklyIncome', 'avgWorkingHours'
     ];
     

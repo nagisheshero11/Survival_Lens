@@ -34,6 +34,8 @@ export interface IKyc {
   pan: string;
   photo: string;
   city: string;
+  latitude?: number;
+  longitude?: number;
   age?: number;
   companies: ICompany[];
   avgWeeklyIncome?: number;
@@ -57,6 +59,8 @@ const kycSchema = new Schema<IKyc>({
   pan: { type: String, default: '' },
   photo: { type: String, default: '' },
   city: { type: String, default: '' },
+  latitude: { type: Number },
+  longitude: { type: Number },
   age: { type: Number },
   companies: { 
     type: [companySchema], 

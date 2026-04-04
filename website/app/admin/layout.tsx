@@ -9,6 +9,7 @@ import {
   Users,
   Vote,
   BarChart3,
+  CloudRain,
   Settings,
   LogOut,
   Shield,
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
   { name: "User Management", href: "/admin/user-management",  icon: Users,           section: "user-management" },
   { name: "Real-Time Voting",href: "/admin/voting",           icon: Vote,            section: "voting" },
   { name: "Risk Analytics",  href: "/admin/risk-analytics",  icon: BarChart3,       section: "risk-analytics" },
+  { name: "Weather Monitor", href: "/admin/weather-monitor", icon: CloudRain,       section: "weather-monitor" },
   { name: "System Settings", href: "/admin/system-settings", icon: Settings,        section: "system-settings" },
 ];
 
