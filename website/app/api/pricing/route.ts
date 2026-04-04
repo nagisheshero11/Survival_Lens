@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser } from '@/middleware/auth';
 import UserPricing from '@/models/UserPricing';
 import connectDB from '@/lib/db';
-import { regenerateUserPricing } from '@/lib/userPricing';
+import { hasValidPricingPlans, regenerateUserPricing } from '@/lib/userPricing';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     await connectDB();
     
     let userPricing = await UserPricing.findOne({ userId: currentUser._id });
-    if (!userPricing || !Array.isArray(userPricing.plans) || userPricing.plans.length === 0) {
+    if (!userPricing || !hasValidPricingPlans(userPricing.plans)) {
       try {
         userPricing = await regenerateUserPricing({
           userId: currentUser._id,

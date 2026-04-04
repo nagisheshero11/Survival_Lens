@@ -4,7 +4,7 @@ import Subscription from '@/models/Subscription';
 import UserPricing from '@/models/UserPricing';
 import User from '@/models/User';
 import connectDB from '@/lib/db';
-import { regenerateUserPricing } from '@/lib/userPricing';
+import { hasValidPricingPlans, regenerateUserPricing } from '@/lib/userPricing';
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,12 +48,17 @@ export async function POST(request: NextRequest) {
     }
 
     let userPricing = await UserPricing.findOne({ userId: currentUser._id });
-    if (!userPricing || !Array.isArray(userPricing.plans) || userPricing.plans.length === 0) {
+    if (!userPricing || !hasValidPricingPlans(userPricing.plans)) {
       userPricing = await regenerateUserPricing({
         userId: currentUser._id,
         city: userDoc.kyc?.city,
         avgWeeklyIncome: userDoc.kyc?.avgWeeklyIncome
       });
+    }
+
+    const lockedPlanType = userPricing.selectedPlan?.planType;
+    if (lockedPlanType && lockedPlanType !== normalizedPlanType) {
+      return NextResponse.json({ message: 'Pricing is locked after plan selection.' }, { status: 409 });
     }
 
     const matchedPlan = userPricing.plans.find((plan) => plan.planType === normalizedPlanType);

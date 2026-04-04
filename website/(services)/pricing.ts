@@ -48,3 +48,19 @@ export async function selectPricingPlan(planType: "basic" | "standard" | "premiu
 
   return data;
 }
+
+export async function recalculatePricing() {
+  const res = await fetch(`${API_URL}/api/pricing/recalculate`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    credentials: "include",
+    body: JSON.stringify({}),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || data.error || "Unable to fetch pricing. Try again.");
+  }
+
+  return data;
+}

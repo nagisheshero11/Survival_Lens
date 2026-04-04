@@ -16,6 +16,38 @@ const PLAN_CONFIG: Array<{ planType: PlanType; sourceKey: 'economy_tier' | 'bala
   { planType: 'premium', sourceKey: 'safety_tier', coverageMultiplier: 1.5 }
 ];
 
+export function hasValidPricingPlans(plans: unknown): plans is IPlan[] {
+  if (!Array.isArray(plans) || plans.length !== 3) return false;
+
+  const expectedTypes = new Set<PlanType>(['basic', 'standard', 'premium']);
+  const seenTypes = new Set<PlanType>();
+
+  for (const item of plans) {
+    if (!item || typeof item !== 'object') return false;
+
+    const plan = item as Partial<IPlan>;
+    if (typeof plan.planType !== 'string' || !expectedTypes.has(plan.planType as PlanType)) {
+      return false;
+    }
+
+    if (seenTypes.has(plan.planType as PlanType)) {
+      return false;
+    }
+
+    if (!Number.isFinite(Number(plan.price)) || Number(plan.price) <= 0) {
+      return false;
+    }
+
+    if (!Number.isFinite(Number(plan.benefitAmount)) || Number(plan.benefitAmount) <= 0) {
+      return false;
+    }
+
+    seenTypes.add(plan.planType as PlanType);
+  }
+
+  return seenTypes.size === expectedTypes.size;
+}
+
 function toPositiveNumber(value: unknown): number | null {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -75,6 +107,10 @@ export async function regenerateUserPricing(params: {
     city: params.city,
     avgWeeklyIncome: params.avgWeeklyIncome
   });
+
+  if (!hasValidPricingPlans(plans)) {
+    throw new Error('Pricing engine returned invalid plans');
+  }
 
   const updated = await UserPricing.findOneAndUpdate(
     { userId: params.userId },

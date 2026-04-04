@@ -11,7 +11,7 @@ import {
 import toast, { Toaster } from "react-hot-toast";
 import { getKycData } from "@/(services)/kyc";
 import { getSubscription, paySubscription } from "@/(services)/subscription";
-import { getPricing, selectPricingPlan } from "@/(services)/pricing";
+import { getPricing, recalculatePricing, selectPricingPlan } from "@/(services)/pricing";
 import { getScopedLocalStorageItem, setScopedLocalStorageItem } from "@/lib/clientStorage";
 
 type SubscriptionData = {
@@ -32,6 +32,23 @@ type PricingPlan = {
 
 type PlanType = "basic" | "standard" | "premium";
 
+const EXPECTED_PLAN_TYPES: PlanType[] = ["basic", "standard", "premium"];
+
+function hasValidPlans(plans: PricingPlan[]): boolean {
+  if (!Array.isArray(plans) || plans.length !== 3) return false;
+
+  const seen = new Set<PlanType>();
+  for (const plan of plans) {
+    if (!plan || !EXPECTED_PLAN_TYPES.includes(plan.planType)) return false;
+    if (!Number.isFinite(plan.price) || plan.price <= 0) return false;
+    if (!Number.isFinite(plan.benefitAmount) || plan.benefitAmount <= 0) return false;
+    if (seen.has(plan.planType)) return false;
+    seen.add(plan.planType);
+  }
+
+  return seen.size === EXPECTED_PLAN_TYPES.length;
+}
+
 export default function PlansPage() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
@@ -42,6 +59,8 @@ export default function PlansPage() {
   const [selectedPlanType, setSelectedPlanType] = useState<PlanType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const [pricingError, setPricingError] = useState("");
 
   useEffect(() => {
     const initKyc = async () => {
@@ -83,12 +102,30 @@ export default function PlansPage() {
   const fetchPricing = async () => {
     try {
       const data = await getPricing();
-      setPricingPlans(Array.isArray(data?.plans) ? data.plans : []);
+      const plans = Array.isArray(data?.plans) ? data.plans : [];
+      setPricingPlans(plans);
       setSelectedPlanType((data?.selectedPlan?.planType as PlanType) || null);
+      setPricingError("");
     } catch (err) {
       console.error(err);
       setPricingPlans([]);
       setSelectedPlanType(null);
+      setPricingError("Unable to fetch pricing. Try again.");
+    }
+  };
+
+  const handleRecalculatePricing = async () => {
+    setIsRecalculating(true);
+    try {
+      await recalculatePricing();
+      await fetchPricing();
+      toast.success("Pricing recalculated successfully.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unable to fetch pricing. Try again.";
+      setPricingError(message);
+      toast.error(message);
+    } finally {
+      setIsRecalculating(false);
     }
   };
 
@@ -135,6 +172,9 @@ export default function PlansPage() {
   };
 
   const isKycApproved = kycStatus === 'approved';
+  const plansAreValid = hasValidPlans(pricingPlans);
+  const pricingLocked = Boolean(subscription || selectedPlanType);
+  const showRecalculateButton = !pricingLocked && (!plansAreValid || Boolean(pricingError));
 
   if (!isMounted) return null;
 
@@ -291,6 +331,24 @@ export default function PlansPage() {
             transition={{ duration: 0.5, staggerChildren: 0.1 }}
             className="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 mb-16"
           >
+            {showRecalculateButton && (
+              <div className="lg:col-span-3 rounded-2xl border border-blue-200/70 bg-blue-50/80 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-black tracking-tight text-blue-900">Pricing unavailable or invalid</h3>
+                  <p className="text-xs font-medium text-blue-700 mt-1">
+                    {pricingError || "Live pricing is missing. Recalculate to fetch fresh plans."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleRecalculatePricing()}
+                  disabled={isRecalculating || isProcessing || !isKycApproved}
+                  className="shrink-0 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black tracking-tight transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isRecalculating ? "Recalculating..." : "Recalculate Price"}
+                </button>
+              </div>
+            )}
             
             {/* KYC Warning Banner */}
              {kycStatus !== 'approved' && (
@@ -345,8 +403,8 @@ export default function PlansPage() {
               </div>
               
               <button 
-                  onClick={() => (isKycApproved ? handleSelectPlan('basic') : router.push('/dashboard/profile/kyc'))}
-                  disabled={isProcessing}
+                  onClick={() => (isKycApproved && !selectedPlanType ? handleSelectPlan('basic') : router.push('/dashboard/profile/kyc'))}
+                  disabled={isProcessing || Boolean(selectedPlanType) || !plansAreValid}
                   className={`w-full border font-black tracking-tight py-4 rounded-2xl transition-all shadow-sm flex justify-center items-center gap-2 ${
                    isKycApproved
                     ? 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200/60'
@@ -357,7 +415,7 @@ export default function PlansPage() {
                     ? 'Processing'
                     : isKycApproved
                       ? selectedPlanType === 'basic'
-                        ? 'Selected'
+                        ? 'Selected (Locked)'
                         : 'Select Basic'
                       : 'Complete KYC to Unlock'}
               </button>
@@ -402,8 +460,8 @@ export default function PlansPage() {
               </div>
 
               <button 
-                onClick={() => (isKycApproved ? handleSelectPlan('standard') : router.push('/dashboard/profile/kyc'))}
-                disabled={isProcessing}
+                onClick={() => (isKycApproved && !selectedPlanType ? handleSelectPlan('standard') : router.push('/dashboard/profile/kyc'))}
+                disabled={isProcessing || Boolean(selectedPlanType) || !plansAreValid}
                 className={`w-full font-black tracking-tight py-4 rounded-2xl shadow-xl transition-colors text-[14px] relative z-10 flex justify-center items-center gap-2 group ${
                   isKycApproved
                     ? 'bg-white hover:bg-slate-50 text-blue-600'
@@ -414,7 +472,7 @@ export default function PlansPage() {
                   ? 'Processing'
                   : isKycApproved
                     ? selectedPlanType === 'standard'
-                      ? 'Selected'
+                      ? 'Selected (Locked)'
                       : 'Select Standard'
                     : 'Complete KYC to Unlock'}
               </button>
@@ -458,8 +516,8 @@ export default function PlansPage() {
               </div>
               
               <button 
-                onClick={() => (isKycApproved ? handleSelectPlan('premium') : router.push('/dashboard/profile/kyc'))}
-                disabled={isProcessing}
+                onClick={() => (isKycApproved && !selectedPlanType ? handleSelectPlan('premium') : router.push('/dashboard/profile/kyc'))}
+                disabled={isProcessing || Boolean(selectedPlanType) || !plansAreValid}
                 className={`w-full mt-auto border font-black tracking-tight py-4 rounded-2xl shadow-lg transition-all relative z-10 text-[14px] flex justify-center items-center gap-2 ${
                   isKycApproved
                     ? 'bg-slate-800 hover:bg-slate-700 border-slate-700/50 text-white'
@@ -470,7 +528,7 @@ export default function PlansPage() {
                   ? 'Processing'
                   : isKycApproved
                     ? selectedPlanType === 'premium'
-                      ? 'Selected'
+                      ? 'Selected (Locked)'
                       : 'Select Premium'
                     : 'Complete KYC to Unlock'}
               </button>
