@@ -557,10 +557,10 @@ export default function DashboardPage() {
               </span>
               <Activity size={20} className="text-blue-500" />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">Current Location</h2>
-            <p className="text-xs text-slate-500 font-bold tracking-wide mb-4 leading-relaxed break-words">
-              {displayedLocation}
+            <p className="text-xs text-slate-500 font-bold tracking-wide leading-relaxed break-words">
+              Current Location
             </p>
+            <h2 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">{displayedLocation}</h2>
             <div className="relative overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-slate-100 h-[180px] sm:h-[205px] xl:h-[220px]">
               <iframe
                 title="User GPS Location"

@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
+  AlertCircle,
   BadgeCheck,
   CloudRain,
+  Loader2,
   ShieldAlert,
   ThumbsUp,
-  Wrench,
 } from "lucide-react";
 
 type Claim = {
@@ -23,83 +24,126 @@ type Claim = {
   location: string;
   severity: string;
   details: string;
+  votes: number;
+  hasVoted: boolean;
 };
 
-const CLAIMS: Claim[] = [
-  {
-    id: "CLM-9092",
-    icon: CloudRain,
-    color: "blue",
-    title: "Flash Flood Alert - Lower East Side",
-    desc: "Water levels rising rapidly on 4th Ave making deliveries extremely hazardous. Seeking validation to trigger auto-protection for route #4A.",
-    risk: "High Risk",
-    status: "34% / 100%",
-    progress: 34,
-    location: "Lower East Side, Manhattan",
-    severity: "High Risk",
-    details:
-      "Flooding is blocking storefront access and creating unsafe delivery conditions. Supporters are being asked to validate the route risk so protection payouts can be activated.",
-  },
-  {
-    id: "CLM-8831",
-    icon: ShieldAlert,
-    color: "red",
-    title: "Arbitrary Deactivations Spiking",
-    desc: "Multiple drivers reporting sudden account suspensions on Platform Z without appeal options. Seeking consensus to trigger legal fund.",
-    risk: "Critical",
-    status: "82% / 100%",
-    progress: 82,
-    location: "Platform Z Network",
-    severity: "Critical",
-    details:
-      "Account suspensions are being reported without notice, review, or appeal. This ticket aggregates the latest reports and evidence to support network action.",
-  },
-  {
-    id: "CLM-7712",
-    icon: Activity,
-    color: "orange",
-    title: "Algorithm Payout Suppression",
-    desc: "Fare mapping shows a 15% reduction in base pay across all zones since the v4.0 app update. Need 100 signatures to dispute.",
-    risk: "Medium Risk",
-    status: "91% / 100%",
-    progress: 91,
-    location: "All active zones",
-    severity: "Medium Risk",
-    details:
-      "The current payout mapping is returning lower base earnings across multiple routes after the v4.0 rollout. Community validation is requested before escalation.",
-  },
-];
+type IncidentApiItem = {
+  id: string;
+  sourceCity: string;
+  riskLevel: "WARNING" | "CRITICAL";
+  action: string;
+  safetyProbability: number;
+  weather: {
+    temperatureCelsius: number;
+    rainMmHr: number;
+    windspeedKmh: number;
+  };
+  votes: number;
+  hasVoted: boolean;
+};
 
-const SUPPORTED_CLAIMS = [
-  {
-    id: "CLM-6621",
-    icon: CloudRain,
-    color: "emerald",
-    title: "Hurricane Base Payout",
-    desc: "Emergency payout multipliers successfully dispensed to coastal drivers over 48 hours. Consensus reached and executed.",
-    tag: "Verified",
-  },
-  {
-    id: "CLM-5100",
-    icon: Wrench,
-    color: "emerald",
-    title: "Payment Gateway Crash",
-    desc: "Bank API failure affected direct withdrawals. Loss of time completely buffered and credited to all active workers.",
-    tag: "Verified",
-  },
-  {
-    id: "CLM-4882",
-    icon: ShieldAlert,
-    color: "emerald",
-    title: "City-Wide Curfew Active",
-    desc: "Mandatory curfew restricted route operations for 12 hours. Platform losses fully reimbursed from the protection pool.",
-    tag: "Verified",
-  },
-];
+function mapIncidentToClaim(item: IncidentApiItem): Claim {
+  const isCritical = item.riskLevel === "CRITICAL";
+  const icon = item.weather.rainMmHr > 3 ? CloudRain : isCritical ? ShieldAlert : Activity;
+  const color = isCritical ? "red" : "orange";
+  const severity = isCritical ? "Critical" : "High Risk";
+
+  return {
+    id: item.id,
+    icon,
+    color,
+    title: `${item.riskLevel} weather disruption in ${item.sourceCity}`,
+    desc: `Rain ${item.weather.rainMmHr.toFixed(1)} mm/hr, wind ${item.weather.windspeedKmh.toFixed(1)} km/h, temp ${item.weather.temperatureCelsius.toFixed(1)} C.`,
+    risk: severity,
+    status: `${item.votes} votes`,
+    progress: Math.min(item.votes, 100),
+    location: item.sourceCity,
+    severity,
+    details: `AI action: ${item.action}. Safety probability: ${item.safetyProbability}%.`,
+    votes: item.votes,
+    hasVoted: item.hasVoted,
+  };
+}
 
 export default function VotingPage() {
+  const [claims, setClaims] = useState<Claim[]>([]);
   const [activeTab, setActiveTab] = useState<"support" | "supported">("support");
   const [selectedItem, setSelectedItem] = useState<Claim | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [votingId, setVotingId] = useState("");
+
+  const supportedClaims = useMemo(() => claims.filter((claim) => claim.hasVoted), [claims]);
+
+  async function fetchIncidents() {
+    try {
+      setError("");
+      const res = await fetch("/api/voting/incidents", { credentials: "include" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to load incidents");
+      }
+
+      const mapped = (data as IncidentApiItem[]).map(mapIncidentToClaim);
+      setClaims(mapped);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Unable to load voting incidents");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function runWeatherScanIfDue() {
+    try {
+      await fetch("/api/voting/scan-weather", { credentials: "include" });
+    } catch {
+      // Non-blocking; incidents endpoint still determines what to show.
+    }
+  }
+
+  async function castVote(claimId: string) {
+    try {
+      setVotingId(claimId);
+      const res = await fetch(`/api/voting/incidents/${claimId}/vote`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Vote could not be recorded");
+      }
+
+      setClaims((current) =>
+        current.map((claim) =>
+          claim.id === claimId
+            ? {
+                ...claim,
+                hasVoted: true,
+                votes: claim.votes + 1,
+                status: `${claim.votes + 1} votes`,
+                progress: Math.min(claim.votes + 1, 100),
+              }
+            : claim
+        )
+      );
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Unable to submit vote");
+    } finally {
+      setVotingId("");
+    }
+  }
+
+  useEffect(() => {
+    const boot = async () => {
+      await runWeatherScanIfDue();
+      await fetchIncidents();
+    };
+
+    boot();
+  }, []);
 
   return (
     <div className="p-8 lg:p-12 max-w-7xl mx-auto w-full relative min-h-full">
@@ -117,6 +161,13 @@ export default function VotingPage() {
         <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-none mb-2">Voting Chamber</h1>
         <p className="text-slate-500 font-medium">Validate community risk claims to trigger protective payouts.</p>
       </div>
+
+      {error && (
+        <div className="relative z-10 mb-6 bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl flex items-center gap-3">
+          <AlertCircle size={18} />
+          <p className="text-sm font-semibold">{error}</p>
+        </div>
+      )}
 
       <AnimatePresence>
         {selectedItem && (
@@ -182,14 +233,14 @@ export default function VotingPage() {
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-black ${activeTab === tab ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500"}`}
               >
-                12
+                {claims.length}
               </span>
             )}
             {tab === "supported" && (
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-black ${activeTab === tab ? "bg-emerald-500 text-white" : "bg-emerald-50 text-emerald-600"}`}
               >
-                48
+                {supportedClaims.length}
               </span>
             )}
 
@@ -215,7 +266,18 @@ export default function VotingPage() {
               transition={{ duration: 0.3 }}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8"
             >
-              {CLAIMS.map((claim) => (
+              {loading ? (
+                <div className="col-span-full flex flex-col items-center justify-center py-16 text-slate-500">
+                  <Loader2 size={28} className="animate-spin mb-3 text-blue-500" />
+                  <p className="text-sm font-bold">Loading active incidents...</p>
+                </div>
+              ) : claims.length === 0 ? (
+                <div className="col-span-full bg-white/80 backdrop-blur-xl rounded-[2rem] p-10 border border-white text-center">
+                  <p className="text-slate-900 font-black text-lg tracking-tight">No active weather incidents nearby</p>
+                  <p className="text-slate-500 text-sm mt-2">The scan runs every 2 hours and creates votes for nearby users when risk spikes.</p>
+                </div>
+              ) : (
+              claims.map((claim) => (
                 <div
                   key={claim.id}
                   className="bg-white/80 backdrop-blur-xl rounded-[2rem] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white flex flex-col justify-between group hover:shadow-[0_20px_50px_rgba(0,0,0,0.06)] transition-all duration-300"
@@ -257,14 +319,22 @@ export default function VotingPage() {
                       >
                         Details
                       </button>
-                      <button className="w-full flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-blue-600/20 hover:-translate-y-0.5 transition-all text-[13px]">
-                        <ThumbsUp size={16} strokeWidth={2.5} />
-                        Support
+                      <button
+                        onClick={() => castVote(claim.id)}
+                        disabled={claim.hasVoted || votingId === claim.id}
+                        className={`w-full flex-1 flex items-center justify-center gap-2 text-white font-bold py-3.5 rounded-2xl shadow-lg transition-all text-[13px] ${
+                          claim.hasVoted
+                            ? "bg-emerald-600 shadow-emerald-600/20"
+                            : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/20 hover:-translate-y-0.5"
+                        } ${(votingId === claim.id || claim.hasVoted) ? "opacity-80 cursor-not-allowed" : ""}`}
+                      >
+                        {votingId === claim.id ? <Loader2 size={16} className="animate-spin" /> : <ThumbsUp size={16} strokeWidth={2.5} />}
+                        {claim.hasVoted ? "Supported" : "Support"}
                       </button>
                     </div>
                   </div>
                 </div>
-              ))}
+              ))) }
             </motion.div>
           )}
 
@@ -277,7 +347,7 @@ export default function VotingPage() {
               transition={{ duration: 0.3 }}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8"
             >
-              {SUPPORTED_CLAIMS.map((claim) => (
+              {supportedClaims.map((claim) => (
                 <div
                   key={claim.id}
                   className="bg-white/60 backdrop-blur-xl rounded-[2rem] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.02)] border border-white flex flex-col justify-between group transition-all duration-300"
@@ -287,8 +357,8 @@ export default function VotingPage() {
                       <div className="w-12 h-12 rounded-[1.25rem] bg-emerald-50 flex items-center justify-center flex-shrink-0 border border-emerald-100/50">
                         <claim.icon size={22} className={`text-${claim.color}-500`} strokeWidth={2.5} />
                       </div>
-                      <span className={`bg-${claim.color}-50 text-${claim.color}-600 border border-${claim.color}-100/50 text-[9px] uppercase tracking-widest font-black px-2.5 py-1 rounded-lg shrink-0`}>
-                        {claim.tag}
+                      <span className="bg-emerald-50 text-emerald-600 border border-emerald-100/50 text-[9px] uppercase tracking-widest font-black px-2.5 py-1 rounded-lg shrink-0">
+                        Verified
                       </span>
                     </div>
 
@@ -307,6 +377,12 @@ export default function VotingPage() {
                   </div>
                 </div>
               ))}
+              {!supportedClaims.length && (
+                <div className="col-span-full bg-white/80 backdrop-blur-xl rounded-[2rem] p-10 border border-white text-center">
+                  <p className="text-slate-900 font-black text-lg tracking-tight">No supported incidents yet</p>
+                  <p className="text-slate-500 text-sm mt-2">Support active incidents to see your vote history here.</p>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
