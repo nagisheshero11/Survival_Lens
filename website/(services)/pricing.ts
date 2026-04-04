@@ -3,6 +3,7 @@ const API_URL = process.env.NEXT_PUBLIC_SERVER_API_URL || process.env.SERVER_API
 type PricingPlan = {
   planType: "basic" | "standard" | "premium";
   price: number;
+  benefitAmount: number;
 };
 
 export type PricingResponse = {

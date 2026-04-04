@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from "./api";
+import type { PlanType } from "./pricingService";
 
 export type Subscription = {
   planAmount: number;
@@ -21,10 +22,10 @@ export async function getSubscription(): Promise<Subscription | null> {
   }
 }
 
-export async function selectPlan(amount: number): Promise<{ message?: string; subscription?: Subscription }> {
-  return apiRequest<{ message?: string; subscription?: Subscription }, { amount: number }>("/api/subscription/select", {
+export async function selectPlan(planType: PlanType): Promise<{ message?: string; subscription?: Subscription }> {
+  return apiRequest<{ message?: string; subscription?: Subscription }, { planType: PlanType }>("/api/subscription/select", {
     method: "POST",
-    body: { amount },
+    body: { planType },
   });
 }
 

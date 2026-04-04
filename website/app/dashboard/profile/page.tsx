@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Pencil, 
   MapPin, 
   Lock, 
   ArrowRight,
@@ -13,11 +11,7 @@ import {
   BadgeCheck,
   Mail,
   Smartphone,
-  ShieldHalf,
-  Briefcase,
-  Store,
-  ShoppingCart,
-  Car
+  ShieldHalf
 } from "lucide-react";
 import { getKycData, calculateKycCompletion } from "../../../(services)/kyc";
 
@@ -38,29 +32,6 @@ export default function ProfilePage() {
 
   // ── KYC API FETCH ──
   const [completionProps, setCompletionProps] = useState({ percentage: 0, filledFields: 0, totalFields: 11 });
-
-  // ── PARTNERS STATE ──
-  const [selectedCategory, setSelectedCategory] = useState("Food Delivery");
-  const [selectedPartners, setSelectedPartners] = useState<string[]>(["Swiggy", "Uber"]);
-  
-  const PARTNER_CATEGORIES = [
-    { id: "Food Delivery", icon: Store, partners: ["Swiggy", "Zomato", "Eats"] },
-    { id: "Quick Commerce", icon: ShoppingCart, partners: ["Blinkit", "Zepto", "Instamart"] },
-    { id: "Mobility", icon: Car, partners: ["Uber", "Ola", "Rapido"] },
-    { id: "E-Commerce", icon: Briefcase, partners: ["Amazon", "Flipkart", "Myntra"] }
-  ];
-
-  const handlePartnerToggle = (partner: string) => {
-    if (selectedPartners.includes(partner)) {
-       if (selectedPartners.length > 1) {
-          setSelectedPartners(prev => prev.filter(p => p !== partner));
-       }
-    } else {
-       if (selectedPartners.length < 4) {
-          setSelectedPartners(prev => [...prev, partner]);
-       }
-    }
-  };
 
   useEffect(() => {
     const loadProfileData = async () => {
@@ -263,61 +234,6 @@ export default function ProfilePage() {
             </div>
         </div>
 
-        {/* Affiliations Block */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white hover:shadow-[0_20px_60px_rgba(0,0,0,0.04)] transition-shadow duration-500">
-           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4 border-b border-slate-100/60 pb-6">
-             <div>
-               <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2 mb-1">
-                 <Briefcase size={18} className="text-slate-400" /> Platform Affiliations
-               </h3>
-               <p className="text-[13px] text-slate-500 font-medium max-w-sm tracking-tight">Select your primary sectors and link up to 4 gig platforms.</p>
-             </div>
-             <div className="text-[11px] font-black tracking-widest uppercase bg-slate-100 text-slate-500 px-4 py-2 rounded-lg border border-slate-200/60 shadow-inner">
-                {selectedPartners.length} / 4 Linked
-             </div>
-           </div>
-
-           <div className="bg-slate-50 rounded-2xl p-1.5 border border-slate-100 flex overflow-x-auto no-scrollbar mb-6">
-             {PARTNER_CATEGORIES.map(cat => {
-               const isActive = selectedCategory === cat.id;
-               return (
-                 <button 
-                   key={cat.id} 
-                   onClick={() => setSelectedCategory(cat.id)}
-                   className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-[12px] font-black tracking-tight whitespace-nowrap transition-all ${isActive ? 'bg-white text-slate-900 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-700'}`}
-                 >
-                   <cat.icon size={14} className={isActive ? 'text-blue-500' : 'text-slate-400'} />
-                   {cat.id}
-                 </button>
-               )
-             })}
-           </div>
-
-           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-             <AnimatePresence mode="popLayout">
-                {PARTNER_CATEGORIES.find(c => c.id === selectedCategory)?.partners.map(partner => {
-                  const isSelected = selectedPartners.includes(partner);
-                  return (
-                     <motion.button
-                        key={partner}
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.9, opacity: 0 }}
-                        transition={{ type: "spring", bounce: 0.2 }}
-                        onClick={() => handlePartnerToggle(partner)}
-                        className={`p-5 rounded-2xl border flex flex-col items-center justify-center transition-all ${isSelected ? 'border-blue-500 bg-blue-50/50 shadow-[0_0_20px_rgba(59,130,246,0.1)]' : 'border-slate-200/60 bg-white hover:border-slate-300/80 shadow-sm'}`}
-                     >
-                        <div className={`w-8 h-8 rounded-lg border ${isSelected ? 'bg-blue-500 border-blue-600 shadow-sm flex items-center justify-center' : 'bg-slate-50 border-slate-200 mb-0'} text-white transition-colors mb-3`}>
-                           {isSelected && <BadgeCheck size={16} strokeWidth={3} className="text-white fill-blue-500" />}
-                        </div>
-                        <span className={`text-[13px] font-black tracking-tight ${isSelected ? 'text-blue-900' : 'text-slate-600'}`}>{partner}</span>
-                     </motion.button>
-                  )
-                })}
-             </AnimatePresence>
-           </div>
-        </div>
-        
         {/* Registration Address */}
         <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-white hover:shadow-[0_20px_60px_rgba(0,0,0,0.04)] transition-shadow duration-500">
            <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2 mb-1">

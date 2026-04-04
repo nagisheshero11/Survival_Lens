@@ -4,17 +4,7 @@ import User, { COMPANY_CATEGORY_MAP } from '@/models/User';
 import Wallet from '@/models/Wallet';
 import UserPricing from '@/models/UserPricing';
 import connectDB from '@/lib/db';
-
-const FALLBACK_PLANS = [
-  { planType: 'basic', price: 90 },
-  { planType: 'standard', price: 110 },
-  { planType: 'premium', price: 150 }
-];
-
-function toPositiveNumber(value: unknown, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
+import { regenerateUserPricing } from '@/lib/userPricing';
 
 export async function GET(request: NextRequest) {
   try {
@@ -202,49 +192,11 @@ export async function POST(request: NextRequest) {
         const shouldGeneratePricing = !hasStoredPlans;
 
         if (shouldGeneratePricing) {
-          const city = String(finalKycState.city || '').trim();
-          let plans = FALLBACK_PLANS;
-
-          try {
-            const botBaseUrl = (process.env.BOT_API_URL || '').replace(/\/$/, '');
-            if (botBaseUrl) {
-              const aiRes = await fetch(`${botBaseUrl}/premium?city=${encodeURIComponent(city)}`);
-              if (aiRes.ok) {
-                const data = await aiRes.json();
-                const premiumOptions = data?.weekly_premium_options || {};
-
-                plans = [
-                  {
-                    planType: 'basic',
-                    price: toPositiveNumber(premiumOptions?.economy_tier, 90)
-                  },
-                  {
-                    planType: 'standard',
-                    price: toPositiveNumber(premiumOptions?.balanced_tier, 110)
-                  },
-                  {
-                    planType: 'premium',
-                    price: toPositiveNumber(premiumOptions?.safety_tier, 150)
-                  }
-                ];
-              }
-            }
-          } catch (botErr: unknown) {
-            const botMessage = botErr instanceof Error ? botErr.message : String(botErr);
-            console.error("AI pricing fetch failed, using fallback plans:", botMessage);
-          }
-
-          await UserPricing.findOneAndUpdate(
-            { userId: currentUser._id },
-            {
-              $setOnInsert: {
-                userId: currentUser._id,
-                selectedPlan: null
-              },
-              $set: { plans }
-            },
-            { upsert: true, new: true }
-          );
+          await regenerateUserPricing({
+            userId: currentUser._id,
+            city: finalKycState.city,
+            avgWeeklyIncome: finalKycState.avgWeeklyIncome
+          });
         }
       } catch (err: unknown) {
         const pricingErrorMessage = err instanceof Error ? err.message : String(err);

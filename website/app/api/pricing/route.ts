@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser } from '@/middleware/auth';
 import UserPricing from '@/models/UserPricing';
 import connectDB from '@/lib/db';
+import { regenerateUserPricing } from '@/lib/userPricing';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,17 +18,18 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
     
-    const userPricing = await UserPricing.findOne({ userId: currentUser._id });
-    if (!userPricing) {
-       // if we want to fallback just in case they didn't do KYC or pricing failed
-       return NextResponse.json({ 
-          plans: [
-            { planType: 'basic', price: 90 },
-            { planType: 'standard', price: 110 },
-            { planType: 'premium', price: 150 }
-          ],
-          selectedPlan: null
-       }, { status: 200 });
+    let userPricing = await UserPricing.findOne({ userId: currentUser._id });
+    if (!userPricing || !Array.isArray(userPricing.plans) || userPricing.plans.length === 0) {
+      try {
+        userPricing = await regenerateUserPricing({
+          userId: currentUser._id,
+          city: currentUser.kyc?.city,
+          avgWeeklyIncome: currentUser.kyc?.avgWeeklyIncome
+        });
+      } catch (pricingErr: unknown) {
+        const message = pricingErr instanceof Error ? pricingErr.message : 'Unable to generate pricing';
+        return NextResponse.json({ message }, { status: 503 });
+      }
     }
 
     return NextResponse.json({ 

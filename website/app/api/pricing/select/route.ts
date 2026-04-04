@@ -4,6 +4,7 @@ import UserPricing from '@/models/UserPricing';
 import Subscription from '@/models/Subscription';
 import User from '@/models/User';
 import connectDB from '@/lib/db';
+import { regenerateUserPricing } from '@/lib/userPricing';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,6 +27,10 @@ export async function POST(request: NextRequest) {
 
     const { planType } = rawBody;
 
+    if (rawBody && typeof rawBody === 'object' && 'amount' in rawBody) {
+      return NextResponse.json({ message: 'Manual amount is not allowed. Select a plan only.' }, { status: 400 });
+    }
+
     if (!planType || typeof planType !== 'string') {
       return NextResponse.json({ message: "Invalid planType" }, { status: 400 });
     }
@@ -44,7 +49,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "KYC must be approved to select a premium plan" }, { status: 403 });
     }
 
-    const userPricing = await UserPricing.findOne({ userId: currentUser._id });
+    let userPricing = await UserPricing.findOne({ userId: currentUser._id });
+    if (!userPricing || !Array.isArray(userPricing.plans) || userPricing.plans.length === 0) {
+      userPricing = await regenerateUserPricing({
+        userId: currentUser._id,
+        city: userDoc.kyc?.city,
+        avgWeeklyIncome: userDoc.kyc?.avgWeeklyIncome
+      });
+    }
+
     if (!userPricing) {
        return NextResponse.json({ message: "Pricing data not found for user. Complete KYC first." }, { status: 404 });
     }
@@ -57,7 +70,8 @@ export async function POST(request: NextRequest) {
     // Update selected plan
     userPricing.selectedPlan = {
        planType: matchedPlan.planType,
-       price: matchedPlan.price
+       price: matchedPlan.price,
+       benefitAmount: matchedPlan.benefitAmount
     };
     await userPricing.save();
 

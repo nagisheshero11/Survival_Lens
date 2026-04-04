@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser } from '@/middleware/auth';
 import Wallet from '@/models/Wallet';
+import UserPricing from '@/models/UserPricing';
 import connectDB from '@/lib/db';
 
 export async function POST(request: NextRequest) {
@@ -15,20 +16,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
-    let rawBody;
+    let rawBody = {};
     try {
       rawBody = await request.json();
-    } catch (e) {
-      return NextResponse.json({ message: "Invalid JSON format" }, { status: 400 });
+    } catch (_e) {
+      // Empty body is expected for strict plan-based premium payment.
     }
 
-    const { amount } = rawBody;
-
-    if (typeof amount !== 'number' || amount <= 0) {
-      return NextResponse.json({ message: "Amount must be a positive number" }, { status: 400 });
+    if (rawBody && typeof rawBody === 'object' && 'amount' in rawBody) {
+      return NextResponse.json({ message: 'Manual amount is not allowed for premium payment.' }, { status: 400 });
     }
 
     await connectDB();
+
+    const userPricing = await UserPricing.findOne({ userId: currentUser._id });
+    const selectedPlan = userPricing?.selectedPlan;
+    if (!selectedPlan || typeof selectedPlan.price !== 'number' || selectedPlan.price <= 0) {
+      return NextResponse.json({ message: 'No valid selected plan found. Select a plan before payment.' }, { status: 400 });
+    }
+
+    const amount = selectedPlan.price;
     
     const paymentRef = `txn_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 

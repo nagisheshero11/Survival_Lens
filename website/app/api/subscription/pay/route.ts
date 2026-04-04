@@ -8,6 +8,17 @@ import { cookies } from 'next/headers';
 
 export async function POST(request: NextRequest) {
   try {
+    let rawBody = {};
+    try {
+      rawBody = await request.json();
+    } catch (_e) {
+      // Empty body is expected.
+    }
+
+    if (rawBody && typeof rawBody === 'object' && 'amount' in rawBody) {
+      return NextResponse.json({ message: 'Manual amount is not allowed for subscription payment.' }, { status: 400 });
+    }
+
     const authResult = await authenticateUser(request);
     if (authResult.error) {
       return NextResponse.json({ message: authResult.error }, { status: authResult.status || 401 });
@@ -42,13 +53,12 @@ export async function POST(request: NextRequest) {
 
     const userPricing = await UserPricing.findOne({ userId: currentUser._id });
     const selectedPlanPrice = userPricing?.selectedPlan?.price;
-    const chargeAmount =
-      typeof selectedPlanPrice === 'number' && selectedPlanPrice > 0
-        ? selectedPlanPrice
-        : subscription.planAmount;
+    const chargeAmount = typeof selectedPlanPrice === 'number' && selectedPlanPrice > 0
+      ? selectedPlanPrice
+      : null;
 
     if (typeof chargeAmount !== 'number' || chargeAmount <= 0) {
-      return NextResponse.json({ message: "Invalid selected plan pricing" }, { status: 400 });
+      return NextResponse.json({ message: 'No selected plan found. Select a plan before payment.' }, { status: 400 });
     }
 
     // We must pass authorization. Cookies are a safe bet if using the web app, but we also check headers.
@@ -69,8 +79,7 @@ export async function POST(request: NextRequest) {
     // 3. Call existing Payment API using NextRequest spoofing
     const spoofedRequest = new NextRequest('http://localhost/api/payments/premium', {
       method: 'POST',
-      headers: headers,
-      body: JSON.stringify({ amount: chargeAmount })
+      headers: headers
     });
 
     const paymentRes = await premiumPaymentAPI(spoofedRequest);
@@ -88,6 +97,7 @@ export async function POST(request: NextRequest) {
 
     // Update Subscription metrics
     const today = new Date();
+    subscription.planAmount = chargeAmount;
     subscription.lastPaymentDate = today;
     subscription.totalPayments += 1;
     

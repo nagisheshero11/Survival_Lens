@@ -3,6 +3,7 @@ import mongoose, { Document, Model, Schema, models, model } from 'mongoose';
 export interface IPlan {
   planType: 'basic' | 'standard' | 'premium';
   price: number;
+  benefitAmount: number;
 }
 
 export interface IUserPricing extends Document {
@@ -20,6 +21,10 @@ const planSchema = new Schema<IPlan>({
     required: true
   },
   price: {
+    type: Number,
+    required: true
+  },
+  benefitAmount: {
     type: Number,
     required: true
   }
