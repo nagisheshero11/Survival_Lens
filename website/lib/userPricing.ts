@@ -1,6 +1,8 @@
 import UserPricing, { IPlan, IUserPricing } from '@/models/UserPricing';
 import { Types } from 'mongoose';
 
+type UserPricingDocument = NonNullable<Awaited<ReturnType<typeof UserPricing.findOne>>>;
+
 export type PlanType = 'basic' | 'standard' | 'premium';
 
 type GeneratePricingInput = {
@@ -68,7 +70,7 @@ export async function regenerateUserPricing(params: {
   userId: Types.ObjectId;
   city?: string;
   avgWeeklyIncome?: number;
-}): Promise<IUserPricing> {
+}): Promise<UserPricingDocument> {
   const plans = await generatePlansFromBot({
     city: params.city,
     avgWeeklyIncome: params.avgWeeklyIncome
